@@ -1,0 +1,75 @@
+[
+  {
+    "test": "100-speaker UI preview does not decode weights or duplicate shared portrait URLs",
+    "passed": true
+  },
+  {
+    "test": "idle pump yields to timers, duplicate wakes are coalesced",
+    "calls": 3,
+    "ticks": 36,
+    "failures": 0
+  },
+  {
+    "test": "inference failure stops, never spins or retries indefinitely",
+    "passed": true
+  },
+  {
+    "test": "2000 CPU runs, fault + double dispose",
+    "stable": {
+      "sessions": 1,
+      "gpuBuffers": 0,
+      "gpuBytes": 0,
+      "cpuIoBytes": 48,
+      "retainedGraphBytes": 0,
+      "inFlight": 0,
+      "runs": 0
+    },
+    "after": {
+      "sessions": 0,
+      "gpuBuffers": 0,
+      "gpuBytes": 0,
+      "cpuIoBytes": 0,
+      "retainedGraphBytes": 0,
+      "inFlight": 0,
+      "runs": 2002
+    }
+  },
+  {
+    "test": "2000 bound GPU runs, fault + double dispose",
+    "stable": {
+      "sessions": 1,
+      "gpuBuffers": 5,
+      "gpuBytes": 80,
+      "cpuIoBytes": 16,
+      "retainedGraphBytes": 0,
+      "inFlight": 0,
+      "runs": 2002
+    },
+    "after": {
+      "sessions": 0,
+      "gpuBuffers": 0,
+      "gpuBytes": 0,
+      "cpuIoBytes": 0,
+      "retainedGraphBytes": 0,
+      "inFlight": 0,
+      "runs": 4004
+    }
+  },
+  {
+    "test": "partial GPU allocation rolls back",
+    "passed": true,
+    "releases": 3
+  },
+  {
+    "test": "overrun pauses and normal input advances once, no rebase",
+    "passed": true
+  },
+  {
+    "test": "file cancellation waits for the active chunk and returns to idle",
+    "passed": true
+  },
+  {
+    "test": "live PCM is snapshotted before asynchronous inference, immune to ring overwrite",
+    "passed": true
+  }
+]

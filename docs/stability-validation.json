@@ -1,0 +1,565 @@
+{
+  "build": "worker-isolation-no-capture-v2",
+  "reproduced": {
+    "fixture": "no model, zero PCM, next chunk unavailable, a 20ms UI timer",
+    "timeoutMs": 1500,
+    "signal": "SIGTERM",
+    "error": "ETIMEDOUT",
+    "timerFired": false
+  },
+  "lifetimeTests": [
+    {
+      "test": "100-speaker UI preview does not decode weights or duplicate shared portrait URLs",
+      "passed": true
+    },
+    {
+      "test": "idle pump yields to timers, duplicate wakes are coalesced",
+      "calls": 3,
+      "ticks": 36,
+      "failures": 0
+    },
+    {
+      "test": "inference failure stops, never spins or retries indefinitely",
+      "passed": true
+    },
+    {
+      "test": "2000 CPU runs, fault + double dispose",
+      "stable": {
+        "sessions": 1,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 48,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 0
+      },
+      "after": {
+        "sessions": 0,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 0,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 2002
+      }
+    },
+    {
+      "test": "2000 bound GPU runs, fault + double dispose",
+      "stable": {
+        "sessions": 1,
+        "gpuBuffers": 5,
+        "gpuBytes": 80,
+        "cpuIoBytes": 16,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 2002
+      },
+      "after": {
+        "sessions": 0,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 0,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 4004
+      }
+    },
+    {
+      "test": "partial GPU allocation rolls back",
+      "passed": true,
+      "releases": 3
+    },
+    {
+      "test": "overrun pauses and normal input advances once, no rebase",
+      "passed": true
+    },
+    {
+      "test": "file cancellation waits for the active chunk and returns to idle",
+      "passed": true
+    },
+    {
+      "test": "live PCM is snapshotted before asynchronous inference, immune to ring overwrite",
+      "passed": true
+    }
+  ],
+  "wasmBrowser": {
+    "browser": "153.0.8010.12",
+    "gpu": {
+      "available": false
+    },
+    "deviceNote": "Desktop sandbox / software GPU, not Adreno hardware",
+    "output": [
+      {
+        "seconds": 1,
+        "rms": 0.191865693969855,
+        "peak": 0.86865234375,
+        "pulse": {
+          "ticks": 49,
+          "maxGap": 66.70000000018626
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.1919605246911318,
+        "peak": 0.867279052734375,
+        "pulse": {
+          "ticks": 108,
+          "maxGap": 79.10000000009313
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.19169254748980105,
+        "peak": 0.870758056640625,
+        "pulse": {
+          "ticks": 150,
+          "maxGap": 79.10000000009313
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.1915389765586495,
+        "peak": 0.865386962890625,
+        "pulse": {
+          "ticks": 186,
+          "maxGap": 79.10000000009313
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.1915353790143805,
+        "peak": 0.864044189453125,
+        "pulse": {
+          "ticks": 223,
+          "maxGap": 79.10000000009313
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.19157404805505285,
+        "peak": 0.860076904296875,
+        "pulse": {
+          "ticks": 261,
+          "maxGap": 79.10000000009313
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18546317062667292,
+        "peak": 0.6610614061355591,
+        "pulse": {
+          "ticks": 70,
+          "maxGap": 181.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18554903793346514,
+        "peak": 0.6811426281929016,
+        "pulse": {
+          "ticks": 116,
+          "maxGap": 181.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18562111728550915,
+        "peak": 0.6786095499992371,
+        "pulse": {
+          "ticks": 151,
+          "maxGap": 181.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18552630642996495,
+        "peak": 0.6628620028495789,
+        "pulse": {
+          "ticks": 184,
+          "maxGap": 181.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18561738295328442,
+        "peak": 0.6599627733230591,
+        "pulse": {
+          "ticks": 216,
+          "maxGap": 181.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.18550542941879453,
+        "peak": 0.6722617149353027,
+        "pulse": {
+          "ticks": 249,
+          "maxGap": 181.39999999990687
+        }
+      }
+    ],
+    "snapshots": [
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 0,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 52
+        },
+        "heap": 4348796,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.5299999999988358
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 1,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 93
+        },
+        "heap": 4478708,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 1.00625
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 2,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 134
+        },
+        "heap": 4516960,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.4400000000023283
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 3,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 175
+        },
+        "heap": 4551924,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.3900000000023283
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 4,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 216
+        },
+        "heap": 4598780,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.5450000000011641
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 5,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 3641700,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 257
+        },
+        "heap": 4634512,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.38624999999883586
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 0,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 52
+        },
+        "heap": 4778088,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 1.1
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 1,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 93
+        },
+        "heap": 4779632,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.3587500000023283
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 2,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 134
+        },
+        "heap": 4794708,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.35874999999650753
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 3,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 175
+        },
+        "heap": 4802252,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.35750000000116416
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 4,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 216
+        },
+        "heap": 4806252,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.35750000000116416
+      },
+      {
+        "title": "刻鳴時雨 (CV: 丸ころ)",
+        "iteration": 5,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 0,
+          "gpuBytes": 0,
+          "cpuIoBytes": 653668,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 257
+        },
+        "heap": 4834828,
+        "backend": "wasm",
+        "ioMode": "cpu-tensors",
+        "rtf": 0.36625000000349245
+      }
+    ],
+    "pageErrors": [],
+    "checks": [
+      "1-second real speech",
+      "repeated conversion",
+      "stable tracked I/O allocations",
+      "realtime timer responsiveness",
+      "nonzero realtime RTF/frame count",
+      "worker termination"
+    ],
+    "excludedClaims": [
+      "total process/GPU memory",
+      "Adreno 6/7/830 stability",
+      "device OOM root cause"
+    ]
+  },
+  "softwareWebgpuBrowser": {
+    "browser": "153.0.8010.12",
+    "gpu": {
+      "available": true,
+      "info": {
+        "vendor": "google",
+        "architecture": "swiftshader",
+        "description": ""
+      },
+      "maxBuffer": 1073741824
+    },
+    "deviceNote": "Desktop sandbox / software GPU, not Adreno hardware",
+    "output": [
+      {
+        "seconds": 1,
+        "rms": 0.1919351003464204,
+        "peak": 0.86981201171875,
+        "pulse": {
+          "ticks": 2193,
+          "maxGap": 51.39999999990687
+        }
+      },
+      {
+        "seconds": 1,
+        "rms": 0.19151977717675936,
+        "peak": 0.8638916015625,
+        "pulse": {
+          "ticks": 4164,
+          "maxGap": 51.39999999990687
+        }
+      }
+    ],
+    "snapshots": [
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 0,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 227,
+          "gpuBytes": 5678704,
+          "cpuIoBytes": 58880,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 52
+        },
+        "heap": 4463804,
+        "backend": "webgpu",
+        "ioMode": "gpu-bound",
+        "rtf": 35.851250000001166
+      },
+      {
+        "title": "Old TTS voices (8 speakers)",
+        "iteration": 1,
+        "resources": {
+          "sessions": 3,
+          "gpuBuffers": 227,
+          "gpuBytes": 5678704,
+          "cpuIoBytes": 58880,
+          "retainedGraphBytes": 0,
+          "inFlight": 0,
+          "runs": 93
+        },
+        "heap": 4598968,
+        "backend": "webgpu",
+        "ioMode": "gpu-bound",
+        "rtf": 36.5
+      }
+    ],
+    "pageErrors": [],
+    "checks": [
+      "1-second real speech",
+      "repeated conversion",
+      "stable tracked I/O allocations",
+      "realtime timer responsiveness",
+      "cancel live GPU work without freezing UI",
+      "worker termination"
+    ],
+    "excludedClaims": [
+      "total process/GPU memory",
+      "Adreno 6/7/830 stability",
+      "device OOM root cause"
+    ]
+  },
+  "rc0NumericRegression": [
+    {
+      "label": "chunk 4 pitch logits",
+      "maxAbs": 0.000016003847122192383,
+      "rmsRelative": 7.594888939578271e-7
+    },
+    {
+      "label": "chunk 4 phone units (attention KV cache)",
+      "maxAbs": 2.561137080192566e-7,
+      "rmsRelative": 8.647671223637388e-7
+    },
+    {
+      "label": "chunk 4 vocoder ir",
+      "maxAbs": 0.0000457763671875,
+      "rmsRelative": 3.335640233824702e-7
+    },
+    {
+      "label": "chunk 4 vocoder aperiodicity",
+      "maxAbs": 0.0000020265579223632812,
+      "rmsRelative": 0.0000013841270460430363
+    },
+    {
+      "label": "chunk 4 vocoder post_filter",
+      "maxAbs": 4.76837158203125e-7,
+      "rmsRelative": 2.2277848824441266e-7
+    },
+    {
+      "label": "chunk 20 pitch logits",
+      "maxAbs": 0.000015735626220703125,
+      "rmsRelative": 7.354341552747291e-7
+    },
+    {
+      "label": "chunk 20 phone units (attention KV cache)",
+      "maxAbs": 1.434236764907837e-7,
+      "rmsRelative": 6.764359246525067e-7
+    },
+    {
+      "label": "chunk 20 vocoder ir",
+      "maxAbs": 0.000026702880859375,
+      "rmsRelative": 2.845616487421699e-7
+    },
+    {
+      "label": "chunk 20 vocoder aperiodicity",
+      "maxAbs": 0.0000016391277313232422,
+      "rmsRelative": 0.000001104593496802056
+    },
+    {
+      "label": "chunk 20 vocoder post_filter",
+      "maxAbs": 5.364418029785156e-7,
+      "rmsRelative": 2.230388547809225e-7
+    }
+  ],
+  "notes": [
+    "Device-specific 13% renderer crash is not conclusively attributed to OOM without device crash/memory logs.",
+    "Tracked GPU buffers are application I/O only, not all ORT, process, driver or GPU allocations.",
+    "A software WebGPU device verifies execution and bounded resources, not mobile GPU performance.",
+    "WASM sustained fake-microphone UI test is 10 seconds per model; this is not a multi-hour soak test.",
+    "Adreno 6xx/7xx/830 have not been physically tested in this environment.",
+    "All production engine paths explicitly disable enableGraphCapture."
+  ]
+}

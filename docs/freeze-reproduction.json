@@ -1,0 +1,7 @@
+{
+  "fixture": "no model, zero PCM, next chunk unavailable, a 20ms UI timer",
+  "timeoutMs": 1500,
+  "signal": "SIGTERM",
+  "error": "ETIMEDOUT",
+  "timerFired": false
+}

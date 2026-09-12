@@ -1,0 +1,83 @@
+{
+  "browser": "153.0.8010.12",
+  "gpu": {
+    "available": true,
+    "info": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "description": ""
+    },
+    "maxBuffer": 1073741824
+  },
+  "deviceNote": "Desktop sandbox / software GPU, not Adreno hardware",
+  "output": [
+    {
+      "seconds": 1,
+      "rms": 0.1919351003464204,
+      "peak": 0.86981201171875,
+      "pulse": {
+        "ticks": 2193,
+        "maxGap": 51.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.19151977717675936,
+      "peak": 0.8638916015625,
+      "pulse": {
+        "ticks": 4164,
+        "maxGap": 51.39999999990687
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 0,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 227,
+        "gpuBytes": 5678704,
+        "cpuIoBytes": 58880,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 52
+      },
+      "heap": 4463804,
+      "backend": "webgpu",
+      "ioMode": "gpu-bound",
+      "rtf": 35.851250000001166
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 1,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 227,
+        "gpuBytes": 5678704,
+        "cpuIoBytes": 58880,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 93
+      },
+      "heap": 4598968,
+      "backend": "webgpu",
+      "ioMode": "gpu-bound",
+      "rtf": 36.5
+    }
+  ],
+  "pageErrors": [],
+  "checks": [
+    "1-second real speech",
+    "repeated conversion",
+    "stable tracked I/O allocations",
+    "realtime timer responsiveness",
+    "cancel live GPU work without freezing UI",
+    "worker termination"
+  ],
+  "excludedClaims": [
+    "total process/GPU memory",
+    "Adreno 6/7/830 stability",
+    "device OOM root cause"
+  ]
+}

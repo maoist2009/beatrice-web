@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@source not "../.research";
+@source not "../tools";
+
+@layer components {
+  .btn { @apply inline-flex items-center rounded-lg bg-sky-700 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 text-sm font-medium text-white transition-colors; }
+  .btn-sm { @apply inline-flex items-center gap-1 rounded bg-slate-800 hover:bg-slate-700 px-2 py-1 text-xs text-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed; }
+  .inp { @apply rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-slate-200; }
+  .lbl { @apply text-xs uppercase tracking-wider text-slate-500; }
+}
+
+code { @apply text-sky-300; }
+button, a, input, select { touch-action: manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+@media (max-width: 1279px) { .btn, .btn-sm { min-height: 36px; } .inp { min-height: 40px; } }
+@keyframes drawer-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.drawer-enter { animation: drawer-enter 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }

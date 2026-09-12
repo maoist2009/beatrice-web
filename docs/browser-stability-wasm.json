@@ -1,0 +1,337 @@
+{
+  "browser": "153.0.8010.12",
+  "gpu": {
+    "available": false
+  },
+  "deviceNote": "Desktop sandbox / software GPU, not Adreno hardware",
+  "output": [
+    {
+      "seconds": 1,
+      "rms": 0.191865693969855,
+      "peak": 0.86865234375,
+      "pulse": {
+        "ticks": 49,
+        "maxGap": 66.70000000018626
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.1919605246911318,
+      "peak": 0.867279052734375,
+      "pulse": {
+        "ticks": 108,
+        "maxGap": 79.10000000009313
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.19169254748980105,
+      "peak": 0.870758056640625,
+      "pulse": {
+        "ticks": 150,
+        "maxGap": 79.10000000009313
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.1915389765586495,
+      "peak": 0.865386962890625,
+      "pulse": {
+        "ticks": 186,
+        "maxGap": 79.10000000009313
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.1915353790143805,
+      "peak": 0.864044189453125,
+      "pulse": {
+        "ticks": 223,
+        "maxGap": 79.10000000009313
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.19157404805505285,
+      "peak": 0.860076904296875,
+      "pulse": {
+        "ticks": 261,
+        "maxGap": 79.10000000009313
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18546317062667292,
+      "peak": 0.6610614061355591,
+      "pulse": {
+        "ticks": 70,
+        "maxGap": 181.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18554903793346514,
+      "peak": 0.6811426281929016,
+      "pulse": {
+        "ticks": 116,
+        "maxGap": 181.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18562111728550915,
+      "peak": 0.6786095499992371,
+      "pulse": {
+        "ticks": 151,
+        "maxGap": 181.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18552630642996495,
+      "peak": 0.6628620028495789,
+      "pulse": {
+        "ticks": 184,
+        "maxGap": 181.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18561738295328442,
+      "peak": 0.6599627733230591,
+      "pulse": {
+        "ticks": 216,
+        "maxGap": 181.39999999990687
+      }
+    },
+    {
+      "seconds": 1,
+      "rms": 0.18550542941879453,
+      "peak": 0.6722617149353027,
+      "pulse": {
+        "ticks": 249,
+        "maxGap": 181.39999999990687
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 0,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 52
+      },
+      "heap": 4348796,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.5299999999988358
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 1,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 93
+      },
+      "heap": 4478708,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 1.00625
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 2,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 134
+      },
+      "heap": 4516960,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.4400000000023283
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 3,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 175
+      },
+      "heap": 4551924,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.3900000000023283
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 4,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 216
+      },
+      "heap": 4598780,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.5450000000011641
+    },
+    {
+      "title": "Old TTS voices (8 speakers)",
+      "iteration": 5,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 3641700,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 257
+      },
+      "heap": 4634512,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.38624999999883586
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 0,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 52
+      },
+      "heap": 4778088,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 1.1
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 1,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 93
+      },
+      "heap": 4779632,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.3587500000023283
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 2,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 134
+      },
+      "heap": 4794708,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.35874999999650753
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 3,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 175
+      },
+      "heap": 4802252,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.35750000000116416
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 4,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 216
+      },
+      "heap": 4806252,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.35750000000116416
+    },
+    {
+      "title": "刻鳴時雨 (CV: 丸ころ)",
+      "iteration": 5,
+      "resources": {
+        "sessions": 3,
+        "gpuBuffers": 0,
+        "gpuBytes": 0,
+        "cpuIoBytes": 653668,
+        "retainedGraphBytes": 0,
+        "inFlight": 0,
+        "runs": 257
+      },
+      "heap": 4834828,
+      "backend": "wasm",
+      "ioMode": "cpu-tensors",
+      "rtf": 0.36625000000349245
+    }
+  ],
+  "pageErrors": [],
+  "checks": [
+    "1-second real speech",
+    "repeated conversion",
+    "stable tracked I/O allocations",
+    "realtime timer responsiveness",
+    "nonzero realtime RTF/frame count",
+    "worker termination"
+  ],
+  "excludedClaims": [
+    "total process/GPU memory",
+    "Adreno 6/7/830 stability",
+    "device OOM root cause"
+  ]
+}

@@ -1,0 +1,678 @@
+{
+  "scope": "Beatrice 2.0.0-beta.2 (stateful GRU) and 2.0.0-rc.0 (windowed). Fused FP16 export semantics, not native beatrice.lib parity. rc.1/rc.2/rc.3 are VST releases over the same rc.0 paraphernalia format.",
+  "provenance": {
+    "trainer": {
+      "repo": "fierce-cats/beatrice-trainer",
+      "revision": "5ddb63ea854832a914a846a22830feb9ff7e691b",
+      "sha256": "87f56c44a744ba012f14c036c34dcc8d6789a141a8c36fe00038c947561934ad"
+    },
+    "models": [
+      {
+        "name": "shigure",
+        "repo": "yasyune/Shigure_Tokina_Beatrice_2.0.0-beta.2",
+        "revision": "43c4e3aaf27aceb2b6fe74842331fd4bf013ac01",
+        "url": "https://huggingface.co/yasyune/Shigure_Tokina_Beatrice_2.0.0-beta.2/resolve/43c4e3aaf27aceb2b6fe74842331fd4bf013ac01/paraphernalia_shigure_00005000.zip",
+        "bytes": 22504613,
+        "sha256": "ccb2f9eafc3039547272f3183d7d7e8e82d025f3219c0632e8c2edaff5f9e116",
+        "files": [
+          {
+            "path": "paraphernalia_shigure_00005000/beatrice_paraphernalia_shigure_00005000.toml",
+            "bytes": 385,
+            "sha256": "ff2352eec297a808a412b54615faf7fe7e87937d3389ff78bcd2787eb284f8f1"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/formant_shift_embeddings.bin",
+            "bytes": 4608,
+            "sha256": "afef90144e27df9eada77e4c55799af701c79ebe1bf1d303a238f2c410b5eeff"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/noimage.png",
+            "bytes": 388874,
+            "sha256": "eb0ffccb330d4476f49405b6248fb080e19578bb397b6a1d8b64f1bc80eb1c5b"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/phone_extractor.bin",
+            "bytes": 10847360,
+            "sha256": "293c72831d78aac3e13f6093cfd3944cbeb497a00c461e437279e37d96a37660"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/pitch_estimator.bin",
+            "bytes": 3434112,
+            "sha256": "a09911ca8c9cf9f19a3304043f7dfef743af2a238ec2308f15f8e7ed4b3cddab"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/speaker_embeddings.bin",
+            "bytes": 512,
+            "sha256": "02a6d94e4424b23dd2f0415d800c0508df1fe3879717c198ddc1295cd7e316c8"
+          },
+          {
+            "path": "paraphernalia_shigure_00005000/waveform_generator.bin",
+            "bytes": 9528320,
+            "sha256": "88cb321362706adb8c7db32535549bc887d599188790ff9e83c6098eb7a8bdc5"
+          }
+        ]
+      },
+      {
+        "name": "kurage",
+        "repo": "yasyune/Kurage_Kikoto_Beatrice_2.0.0-beta.2",
+        "revision": "69c6155d7e716b31b4cb2fd28b9fd62f5b7395c5",
+        "url": "https://huggingface.co/yasyune/Kurage_Kikoto_Beatrice_2.0.0-beta.2/resolve/69c6155d7e716b31b4cb2fd28b9fd62f5b7395c5/paraphernalia_kurage_00005000.zip",
+        "bytes": 22505195,
+        "sha256": "62a9338c904bcb07b36336d604e068dc9ff68b88ed66348ea00b9f38b4582f10",
+        "files": [
+          {
+            "path": "paraphernalia_kurage_00005000/beatrice_paraphernalia_kurage_00005000.toml",
+            "bytes": 382,
+            "sha256": "7b605efb75cfa6ea0143e6130df5009d422431be71d53584e82773f5ebe145ac"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/formant_shift_embeddings.bin",
+            "bytes": 4608,
+            "sha256": "dbe3c0a53eb77e4c60101855adeb9adbd2db12b956757bdb2c555ab4cb1923c0"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/noimage.png",
+            "bytes": 388874,
+            "sha256": "eb0ffccb330d4476f49405b6248fb080e19578bb397b6a1d8b64f1bc80eb1c5b"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/phone_extractor.bin",
+            "bytes": 10847360,
+            "sha256": "293c72831d78aac3e13f6093cfd3944cbeb497a00c461e437279e37d96a37660"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/pitch_estimator.bin",
+            "bytes": 3434112,
+            "sha256": "a09911ca8c9cf9f19a3304043f7dfef743af2a238ec2308f15f8e7ed4b3cddab"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/speaker_embeddings.bin",
+            "bytes": 512,
+            "sha256": "9c325f389fe68cd464d003de01b2c6b9330a8f9785222dab9bdda78782e94767"
+          },
+          {
+            "path": "paraphernalia_kurage_00005000/waveform_generator.bin",
+            "bytes": 9528320,
+            "sha256": "d43b6ea67a3d197ecd2d7765560d45c37fd3114be765b9988c7854c176750093"
+          }
+        ]
+      }
+    ]
+  },
+  "torchOnnx": [
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "phone",
+      "max_abs": 0.0000017583370208740234,
+      "rms_relative": 0.0000016300466253093387
+    },
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.0000013262033462524414,
+      "rms_relative": 0.000001561440180332652
+    },
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "pitch",
+      "max_abs": 0.0000133514404296875,
+      "rms_relative": 5.198582673871131e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "vocoder/ir",
+      "max_abs": 0.0002415180206298828,
+      "rms_relative": 0.0000010100153359475636
+    },
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 4.76837158203125e-7,
+      "rms_relative": 5.187206346913544e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 1,
+      "stage": "vocoder/post_filter",
+      "max_abs": 7.152557373046875e-7,
+      "rms_relative": 2.4696980420335845e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "phone",
+      "max_abs": 0.0000017583370208740234,
+      "rms_relative": 0.000001804443118134
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.0000016987323760986328,
+      "rms_relative": 0.0000017697611092250753
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "pitch",
+      "max_abs": 0.00001430511474609375,
+      "rms_relative": 5.643767583758473e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "vocoder/ir",
+      "max_abs": 0.00020742416381835938,
+      "rms_relative": 0.0000011402184625513947
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 8.791685104370117e-7,
+      "rms_relative": 8.372339346931957e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 4,
+      "stage": "vocoder/post_filter",
+      "max_abs": 2.980232238769531e-7,
+      "rms_relative": 1.9886383079584933e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "phone",
+      "max_abs": 0.0000019073486328125,
+      "rms_relative": 0.0000016815236150587137
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.000002041459083557129,
+      "rms_relative": 0.0000016885316736296051
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "pitch",
+      "max_abs": 0.0000152587890625,
+      "rms_relative": 5.550787757127987e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "vocoder/ir",
+      "max_abs": 0.00016820430755615234,
+      "rms_relative": 9.630812354700357e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 6.854534149169922e-7,
+      "rms_relative": 7.153665370769768e-7
+    },
+    {
+      "model": "shigure",
+      "chunk": 20,
+      "stage": "vocoder/post_filter",
+      "max_abs": 2.849847078323364e-7,
+      "rms_relative": 1.8037028989199315e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "phone",
+      "max_abs": 0.0000017583370208740234,
+      "rms_relative": 0.0000016300466253093387
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.0000013262033462524414,
+      "rms_relative": 0.000001561440180332652
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "pitch",
+      "max_abs": 0.0000133514404296875,
+      "rms_relative": 5.198582673871131e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "vocoder/ir",
+      "max_abs": 0.00006008148193359375,
+      "rms_relative": 4.998696230712831e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 7.748603820800781e-7,
+      "rms_relative": 5.064852056943677e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 1,
+      "stage": "vocoder/post_filter",
+      "max_abs": 5.364418029785156e-7,
+      "rms_relative": 2.5913785467949854e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "phone",
+      "max_abs": 0.0000017583370208740234,
+      "rms_relative": 0.000001804443118134
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.0000016987323760986328,
+      "rms_relative": 0.0000017697611092250753
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "pitch",
+      "max_abs": 0.00001430511474609375,
+      "rms_relative": 5.643767583758473e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "vocoder/ir",
+      "max_abs": 0.00010848045349121094,
+      "rms_relative": 6.23031390882423e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 0.0000011920928955078125,
+      "rms_relative": 7.185817491527739e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 4,
+      "stage": "vocoder/post_filter",
+      "max_abs": 8.083879947662354e-7,
+      "rms_relative": 2.671017966575104e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "phone",
+      "max_abs": 0.0000019073486328125,
+      "rms_relative": 0.0000016815236150587137
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "phone-primitives/phone",
+      "max_abs": 0.000002041459083557129,
+      "rms_relative": 0.0000016885316736296051
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "pitch",
+      "max_abs": 0.0000152587890625,
+      "rms_relative": 5.550787757127987e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "vocoder/ir",
+      "max_abs": 0.00008344650268554688,
+      "rms_relative": 5.934180268229522e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "vocoder/aperiodicity",
+      "max_abs": 0.0000010132789611816406,
+      "rms_relative": 5.935056588782639e-7
+    },
+    {
+      "model": "kurage",
+      "chunk": 20,
+      "stage": "vocoder/post_filter",
+      "max_abs": 3.8277357816696167e-7,
+      "rms_relative": 2.0503648063275548e-7
+    }
+  ],
+  "productionRuntime": [
+    {
+      "label": "FFT 480 impulse",
+      "maxAbs": 7.845945775052749e-17,
+      "rmsRelative": 4.870516244831608e-16
+    },
+    {
+      "label": "FFT 512 impulse",
+      "maxAbs": 0,
+      "rmsRelative": 0
+    },
+    {
+      "label": "FFT 560 impulse",
+      "maxAbs": 6.469450578183798e-17,
+      "rmsRelative": 4.426071385381717e-16
+    },
+    {
+      "label": "FFT 768 impulse",
+      "maxAbs": 6.586772969168994e-17,
+      "rmsRelative": 4.728827225312426e-16
+    },
+    {
+      "label": "shigure DSP instfreq",
+      "maxAbs": 0.00003026425838470459,
+      "rmsRelative": 7.128974764376321e-7
+    },
+    {
+      "label": "shigure DSP correlation",
+      "maxAbs": 0.0000015087425708770752,
+      "rmsRelative": 9.114301909810464e-8
+    },
+    {
+      "label": "shigure DSP energy",
+      "maxAbs": 5.960464477539063e-8,
+      "rmsRelative": 4.4856236017286014e-8
+    },
+    {
+      "label": "shigure band-48 indices",
+      "maxAbs": 0,
+      "rmsRelative": 0
+    },
+    {
+      "label": "shigure pitch features",
+      "maxAbs": 0.000013928103726357222,
+      "rmsRelative": 0.00000205038427942213
+    },
+    {
+      "label": "shigure isolated synthesis",
+      "maxAbs": 2.384185791015625e-7,
+      "rmsRelative": 2.1495172756961607e-7
+    },
+    {
+      "label": "shigure c1 phone",
+      "maxAbs": 0.0000024139881134033203,
+      "rmsRelative": 0.00000182122541240454
+    },
+    {
+      "label": "shigure c1 pitch",
+      "maxAbs": 0.000019550323486328125,
+      "rmsRelative": 7.395160037421011e-7
+    },
+    {
+      "label": "shigure c1 embedding",
+      "maxAbs": 0.000007152557373046875,
+      "rmsRelative": 9.261728243589519e-7
+    },
+    {
+      "label": "shigure c1 ir",
+      "maxAbs": 0.0007990598678588867,
+      "rmsRelative": 0.0000033516367113683243
+    },
+    {
+      "label": "shigure c1 aperiodicity",
+      "maxAbs": 0.0000013709068298339844,
+      "rmsRelative": 0.0000011757753377811798
+    },
+    {
+      "label": "shigure c1 post_filter",
+      "maxAbs": 4.544854164123535e-7,
+      "rmsRelative": 3.062598106740014e-7
+    },
+    {
+      "label": "shigure c1 end-to-end waveform",
+      "maxAbs": 0.00005161762237548828,
+      "rmsRelative": 0.00003688190935162411
+    },
+    {
+      "label": "shigure c4 phone",
+      "maxAbs": 0.0000024139881134033203,
+      "rmsRelative": 0.00000182122541240454
+    },
+    {
+      "label": "shigure c4 pitch",
+      "maxAbs": 0.000019550323486328125,
+      "rmsRelative": 7.395160037421011e-7
+    },
+    {
+      "label": "shigure c4 embedding",
+      "maxAbs": 0.000007152557373046875,
+      "rmsRelative": 9.261728243589519e-7
+    },
+    {
+      "label": "shigure c4 ir",
+      "maxAbs": 0.0007990598678588867,
+      "rmsRelative": 0.0000033516367113683243
+    },
+    {
+      "label": "shigure c4 aperiodicity",
+      "maxAbs": 0.0000013709068298339844,
+      "rmsRelative": 0.0000011757753377811798
+    },
+    {
+      "label": "shigure c4 post_filter",
+      "maxAbs": 4.544854164123535e-7,
+      "rmsRelative": 3.062598106740014e-7
+    },
+    {
+      "label": "shigure c4 end-to-end waveform",
+      "maxAbs": 0.00005161762237548828,
+      "rmsRelative": 0.00003688190935162411
+    },
+    {
+      "label": "shigure c20 phone",
+      "maxAbs": 0.000001817941665649414,
+      "rmsRelative": 0.000001719047901352102
+    },
+    {
+      "label": "shigure c20 pitch",
+      "maxAbs": 0.000025033950805664062,
+      "rmsRelative": 7.525549247615873e-7
+    },
+    {
+      "label": "shigure c20 embedding",
+      "maxAbs": 0.000007286667823791504,
+      "rmsRelative": 8.996930056302373e-7
+    },
+    {
+      "label": "shigure c20 ir",
+      "maxAbs": 0.0008101463317871094,
+      "rmsRelative": 0.0000035383191320027076
+    },
+    {
+      "label": "shigure c20 aperiodicity",
+      "maxAbs": 0.000001430511474609375,
+      "rmsRelative": 0.0000011931913830740237
+    },
+    {
+      "label": "shigure c20 post_filter",
+      "maxAbs": 8.642673492431641e-7,
+      "rmsRelative": 3.776483312312255e-7
+    },
+    {
+      "label": "shigure c20 end-to-end waveform",
+      "maxAbs": 0.000052541494369506836,
+      "rmsRelative": 0.0000370243784102248
+    },
+    {
+      "label": "kurage DSP instfreq",
+      "maxAbs": 0.00003026425838470459,
+      "rmsRelative": 7.128974764376321e-7
+    },
+    {
+      "label": "kurage DSP correlation",
+      "maxAbs": 0.0000015087425708770752,
+      "rmsRelative": 9.114301909810464e-8
+    },
+    {
+      "label": "kurage DSP energy",
+      "maxAbs": 5.960464477539063e-8,
+      "rmsRelative": 4.4856236017286014e-8
+    },
+    {
+      "label": "kurage band-48 indices",
+      "maxAbs": 0,
+      "rmsRelative": 0
+    },
+    {
+      "label": "kurage pitch features",
+      "maxAbs": 0.000013928103726357222,
+      "rmsRelative": 0.00000205038427942213
+    },
+    {
+      "label": "kurage isolated synthesis",
+      "maxAbs": 2.384185791015625e-7,
+      "rmsRelative": 2.1539199359161522e-7
+    },
+    {
+      "label": "kurage c1 phone",
+      "maxAbs": 0.0000024139881134033203,
+      "rmsRelative": 0.00000182122541240454
+    },
+    {
+      "label": "kurage c1 pitch",
+      "maxAbs": 0.000019550323486328125,
+      "rmsRelative": 7.395160037421011e-7
+    },
+    {
+      "label": "kurage c1 embedding",
+      "maxAbs": 0.000006765127182006836,
+      "rmsRelative": 9.245921011610493e-7
+    },
+    {
+      "label": "kurage c1 ir",
+      "maxAbs": 0.00019979476928710938,
+      "rmsRelative": 0.000001448038208381908
+    },
+    {
+      "label": "kurage c1 aperiodicity",
+      "maxAbs": 0.0000017285346984863281,
+      "rmsRelative": 0.0000011832082379616175
+    },
+    {
+      "label": "kurage c1 post_filter",
+      "maxAbs": 5.438923835754395e-7,
+      "rmsRelative": 3.449138003650375e-7
+    },
+    {
+      "label": "kurage c1 end-to-end waveform",
+      "maxAbs": 0.00009920634329319,
+      "rmsRelative": 0.000057300057279173534
+    },
+    {
+      "label": "kurage c4 phone",
+      "maxAbs": 0.0000024139881134033203,
+      "rmsRelative": 0.00000182122541240454
+    },
+    {
+      "label": "kurage c4 pitch",
+      "maxAbs": 0.000019550323486328125,
+      "rmsRelative": 7.395160037421011e-7
+    },
+    {
+      "label": "kurage c4 embedding",
+      "maxAbs": 0.000006765127182006836,
+      "rmsRelative": 9.245921011610493e-7
+    },
+    {
+      "label": "kurage c4 ir",
+      "maxAbs": 0.00019979476928710938,
+      "rmsRelative": 0.000001448038208381908
+    },
+    {
+      "label": "kurage c4 aperiodicity",
+      "maxAbs": 0.0000017285346984863281,
+      "rmsRelative": 0.0000011832082379616175
+    },
+    {
+      "label": "kurage c4 post_filter",
+      "maxAbs": 5.438923835754395e-7,
+      "rmsRelative": 3.449138003650375e-7
+    },
+    {
+      "label": "kurage c4 end-to-end waveform",
+      "maxAbs": 0.00009920634329319,
+      "rmsRelative": 0.000057300057279173534
+    },
+    {
+      "label": "kurage c20 phone",
+      "maxAbs": 0.000001817941665649414,
+      "rmsRelative": 0.000001719047901352102
+    },
+    {
+      "label": "kurage c20 pitch",
+      "maxAbs": 0.000025033950805664062,
+      "rmsRelative": 7.525549247615873e-7
+    },
+    {
+      "label": "kurage c20 embedding",
+      "maxAbs": 0.000006899237632751465,
+      "rmsRelative": 8.978386688456904e-7
+    },
+    {
+      "label": "kurage c20 ir",
+      "maxAbs": 0.00026702880859375,
+      "rmsRelative": 0.000001579495382046444
+    },
+    {
+      "label": "kurage c20 aperiodicity",
+      "maxAbs": 0.0000015795230865478516,
+      "rmsRelative": 0.0000010878538675399988
+    },
+    {
+      "label": "kurage c20 post_filter",
+      "maxAbs": 7.152557373046875e-7,
+      "rmsRelative": 3.563631101959477e-7
+    },
+    {
+      "label": "kurage c20 end-to-end waveform",
+      "maxAbs": 0.00009936094284057617,
+      "rmsRelative": 0.00005712725695162087
+    }
+  ],
+  "browser": {
+    "browser": "153.0.8010.12",
+    "provider": "WASM",
+    "checks": [
+      "HF CORS download + SHA-256",
+      "beta.1 metadata routed to beta.2 engine",
+      "WAV conversion",
+      "ZIP export",
+      "cache reload without network archive",
+      "desktop/sidebar layout",
+      "390px mobile drawers",
+      "no POST"
+    ],
+    "output": {
+      "seconds": 2.33,
+      "rms": 0.15603984900948717,
+      "peak": 0.791497528553009
+    }
+  },
+  "gruOnGpu": "The primitives GRU (MatMul/Sigmoid/Tanh) matches the native GRU node against PyTorch; device-level GPU speed is not measured here.",
+  "unverified": [
+    "Adreno 830 hardware performance",
+    "physical microphone-to-speaker latency",
+    "official native beatrice.lib parity",
+    "WebGPU vs WASM speed on any device"
+  ],
+  "notImplemented": [
+    "RVC v2 inference",
+    "Chinese-language training data (the frozen extractors are Japanese/English/singing only)"
+  ]
+}

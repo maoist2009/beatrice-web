@@ -1,0 +1,90 @@
+// Tests the built single-file app using intercepted static HTML, with no application test server.
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { unzipSync } from 'fflate';
+process.env.PLAYWRIGHT_BROWSERS_PATH = `${process.cwd()}/.research/browsers`;
+process.env.LD_LIBRARY_PATH = `${process.cwd()}/.research/sysroot/usr/lib/x86_64-linux-gnu:${process.cwd()}/.research/sysroot/lib/x86_64-linux-gnu`;
+const { chromium } = await import('playwright');
+
+// Node Buffer offsets are not guaranteed to be zero; create the fixture from an explicit view.
+const raw = readFileSync('.research/golden-shigure/input.f32');
+const input = new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
+const wav = Buffer.alloc(44 + input.length * 2);
+wav.write('RIFF'); wav.writeUInt32LE(36 + input.length * 2, 4); wav.write('WAVE', 8); wav.write('fmt ', 12);
+wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+wav.write('data', 36); wav.writeUInt32LE(input.length * 2, 40);
+for (let i = 0; i < input.length; i++) wav.writeInt16LE(Math.round(Math.max(-1, Math.min(1, input[i])) * 32767), 44 + i * 2);
+writeFileSync('.research/browser-input.wav', wav);
+
+const dist = process.env.DIST_DIR ?? 'dist';
+const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+const context = await browser.newContext({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
+await context.route('http://127.0.0.1:4178/**', route => route.fulfill({ contentType: 'text/html', body: readFileSync(`${dist}/index.html`) }));
+const page = await context.newPage();
+const errors = [], requests = [];
+page.on('pageerror', e => errors.push(e.message));
+page.on('request', r => requests.push({ method: r.method(), url: r.url() }));
+page.on('console', m => { if (m.type() === 'error') console.log('[browser console]', m.text().slice(0, 500)); });
+try {
+  await page.goto('http://127.0.0.1:4178/', { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Beatrice 2 Web', exact: true }).waitFor();
+  const left = await page.getByRole('complementary', { name: 'Models and runtime' }).boundingBox();
+  const middle = await page.getByRole('main').boundingBox();
+  const right = await page.getByRole('complementary', { name: 'Voice settings' }).boundingBox();
+  assert(left.x + left.width <= middle.x + 1 && middle.x + middle.width <= right.x + 1, 'Desktop sidebar order');
+  const shigure = page.getByRole('listitem').filter({ hasText: '刻鳴時雨 (CV: 丸ころ)' }).first();
+  await shigure.getByRole('button', { name: 'get', exact: true }).click();
+  await page.getByText('TOML: 2.0.0-beta.1', { exact: false }).waitFor({ timeout: 120000 });
+  console.log('[browser] direct HF download, checksum, parse and cache succeeded');
+  await page.locator('select').nth(0).selectOption('wasm');
+  await page.getByRole('button', { name: 'Build & compile', exact: true }).click();
+  await page.getByRole('button', { name: 'Live mic', exact: true }).waitFor({ state: 'visible' });
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent.includes('Live mic') && !b.disabled), undefined, { timeout: 120000 });
+  await page.locator('input[type=file][accept*=".wav"]').setInputFiles('.research/browser-input.wav');
+  await page.getByText('browser-input.wav', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Convert', exact: true }).click();
+  await page.getByRole('link', { name: 'download WAV', exact: true }).waitFor({ timeout: 120000 });
+  const levels = await page.evaluate(async () => {
+    const url = document.querySelectorAll('audio')[1].src;
+    const data = await (await fetch(url)).arrayBuffer();
+    const decoded = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(data);
+    const a = decoded.getChannelData(0); let sum = 0, peak = 0;
+    for (const v of a) { sum += v * v; peak = Math.max(peak, Math.abs(v)); }
+    return { seconds: decoded.duration, rms: Math.sqrt(sum / a.length), peak };
+  });
+  assert(Math.abs(levels.seconds - 2.33) < 0.02 && levels.rms > 0.005 && levels.peak <= 1);
+  console.log('[browser WAV conversion]', levels);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'export loaded model ZIP', exact: true }).click();
+  const exportPath = '.research/browser-export.zip'; await (await download).saveAs(exportPath);
+  const zip = unzipSync(new Uint8Array(readFileSync(exportPath)));
+  assert(zip['formant_shift_embeddings.bin']?.length === 4608);
+  assert(zip['MODEL-CARD.md'] && zip['DOWNLOAD-SOURCE.txt']);
+  assert.deepEqual(zip['waveform_generator.bin'], new Uint8Array(readFileSync('.research/shigure/waveform_generator.bin')));
+  console.log('[browser] original model cache export, attribution and formant file retained');
+  requests.length = 0;
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'load', exact: true }).click();
+  await page.getByText('TOML: 2.0.0-beta.1', { exact: false }).waitFor();
+  assert(!requests.some(r => r.url.includes('.zip')), 'Cached load should not re-download the archive');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert((await page.getByRole('main').boundingBox()).width >= 388);
+  await page.getByRole('button', { name: 'model panel', exact: true }).click();
+  assert(await page.getByRole('complementary', { name: 'Models and runtime' }).isVisible());
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'voice parameters', exact: true }).click();
+  assert(await page.getByRole('complementary', { name: 'Voice settings' }).isVisible());
+  await page.keyboard.press('Escape');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  assert(!overflow, 'Mobile horizontal overflow');
+  assert.equal(errors.length, 0, errors.join('\n'));
+  assert(!requests.some(r => r.method === 'POST'), 'Audio must never be uploaded');
+  mkdirSync('.research/screens', { recursive: true });
+  await page.screenshot({ path: '.research/screens/mobile.png' });
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.screenshot({ path: '.research/screens/desktop.png' });
+  const report = { browser: browser.version(), provider: 'WASM', checks: ['HF CORS download + SHA-256', 'beta.1 metadata routed to beta.2 engine', 'WAV conversion', 'ZIP export', 'cache reload without network archive', 'desktop/sidebar layout', '390px mobile drawers', 'no POST'], output: levels };
+  writeFileSync('.research/browser-results.json', JSON.stringify(report, null, 2));
+  console.log('BROWSER SMOKE PASS', JSON.stringify(report));
+} finally { await context.close(); await browser.close(); }
