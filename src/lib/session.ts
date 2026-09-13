@@ -1,5 +1,6 @@
 import type * as ORT from 'onnxruntime-web';
 import type { ResourceStats } from './runtime-types';
+import { injectedWebGpuDevice } from './ort-runtime';
 
 export type OrtRuntime = typeof ORT;
 export type Backend = 'webgpu' | 'wasm';
@@ -31,7 +32,6 @@ const MAX_OWNED_GPU = 32 * 1024 * 1024;
 
 /** Owns exactly one session and its fixed I/O. Graph bytes are NOT retained. Graph capture is disabled. */
 export class StatefulSession {
-  readonly captured = false;
   readonly gpuBound: boolean;
   private readonly specs: Omit<StreamingGraph, 'bytes'>;
   private session: ORT.InferenceSession | null;
@@ -51,22 +51,43 @@ export class StatefulSession {
   private fault: Error | null = null;
   private localCpuBytes = 0;
   private loss = { active: true, message: '' };
-  private constructor(private ort: OrtRuntime, session: ORT.InferenceSession, graph: StreamingGraph, gpuBound: boolean) {
+  private constructor(private ort: OrtRuntime, session: ORT.InferenceSession, graph: StreamingGraph, gpuBound: boolean, readonly captured: boolean) {
     this.session = session; this.gpuBound = gpuBound;
     this.specs = { states: graph.states, inputs: graph.inputs, outputs: graph.outputs };
     this.stateOutputs = new Set(graph.states.map(s => s.output));
     resources.sessions++;
   }
 
-  static async create(ort: OrtRuntime, graph: StreamingGraph, ep: Backend, gpuBound = false): Promise<StatefulSession> {
+  static async create(ort: OrtRuntime, graph: StreamingGraph, ep: Backend, gpuBound = false, capture = false): Promise<StatefulSession> {
     if (graph.bytes.byteLength > 64 * 1024 * 1024) throw new Error('Individual graph exceeds the 64 MiB safety budget');
     const label = graph.outputs.find(o => !graph.states.some(s => s.output === o.name))?.name ?? 'model';
-    reportStage(`Initialize ${label} (${ep}, capture OFF)`);
-    const session = await ort.InferenceSession.create(graph.bytes, {
-      executionProviders: [ep], graphOptimizationLevel: 'all', enableGraphCapture: false,
+    // Capture needs static shapes + fully GPU-bound I/O; only attempted in bound WebGPU mode.
+    const wantCapture = capture && ep === 'webgpu' && gpuBound;
+    const injected = ep === 'webgpu' ? injectedWebGpuDevice() : null;
+    const open = (cap: boolean) => ort.InferenceSession.create(graph.bytes, {
+      // The app-owned device (FP32-forced, no shader-f16) is passed through the EP option;
+      // ort.env.webgpu.device assignment alone is ignored by some ORT builds (#26107).
+      executionProviders: [injected ? { name: 'webgpu' as const, device: injected } : ep],
+      graphOptimizationLevel: 'all',
+      // Records the command sequence on the first run and replays it afterwards — the
+      // mechanism that removes per-chunk dispatch overhead on WebGPU. Drivers that cannot
+      // capture throw here; we retry once with capture OFF instead of failing the build.
+      enableGraphCapture: cap,
+      // Android Chrome reuses one renderer across same-tab reloads. The default WASM arena
+      // retains freed linear memory, so every rebuild used to stack another arena → OOM.
+      ...(ep === 'wasm' ? { enableCpuMemArena: false, enableMemPattern: false } : {}),
       ...(ep === 'webgpu' && gpuBound ? { preferredOutputLocation: 'gpu-buffer' as const } : {}),
-    });
-    const value = new StatefulSession(ort, session, graph, ep === 'webgpu' && gpuBound);
+    } as ORT.InferenceSession.SessionOptions);
+    let session: ORT.InferenceSession; let captured = false;
+    reportStage(`Initialize ${label} (${ep}, capture ${wantCapture ? 'ON (experimental)' : 'OFF'})`);
+    if (wantCapture) {
+      try { session = await open(true); captured = true; }
+      catch (error) {
+        reportStage(`Graph capture rejected (${String(error).slice(0, 90)}); retrying with capture OFF`);
+        session = await open(false);
+      }
+    } else session = await open(false);
+    const value = new StatefulSession(ort, session, graph, ep === 'webgpu' && gpuBound, captured);
     try {
       if (value.gpuBound) await value.bindGpu(); else value.bindCpu();
       value.reset();
@@ -84,7 +105,7 @@ export class StatefulSession {
   }
 
   private async bindGpu() {
-    const device = (this.ort.env.webgpu as unknown as { device: GDevice }).device;
+    const device = ((this.ort.env.webgpu as unknown as { device: GDevice | undefined }).device ?? injectedWebGpuDevice()) as GDevice | null;
     if (!device) throw new Error('ORT WebGPU device is unavailable');
     this.device = device;
     const bindings = [...this.specs.inputs, ...this.specs.outputs];

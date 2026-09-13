@@ -28,11 +28,12 @@ async function handle(request: WorkerRequest) {
       const model = parseParaphernalia(request.files);
       const options = { ...request.options, onLog: (text: string) => send({ type: 'log', text }) };
       const isBeta = model.format === 'beatrice-beta2';
-      engine = await StreamEngine.create(model, options, (m, ort, ep, chunk, params, bound) => isBeta
-        ? BetaProcessor.create(m, ort, ep, chunk, params, Math.random, ep === 'webgpu' ? 'primitives' : 'onnx-gru', bound)
-        : Rc0Processor.create(m, ort, ep, chunk, params, { gpuBound: bound, attnPositions: Math.max(8, Math.round(options.ctxFrames / 4)) }), model.format);
+      engine = await StreamEngine.create(model, options, (m, ort, ep, chunk, params, bound, capture) => isBeta
+        ? BetaProcessor.create(m, ort, ep, chunk, params, Math.random, ep === 'webgpu' ? 'primitives' : 'onnx-gru', bound, capture)
+        : Rc0Processor.create(m, ort, ep, chunk, params, { gpuBound: bound, capture, attnPositions: Math.max(8, Math.round(options.ctxFrames / 4)) }), model.format);
       engine.onStats = stats => send({ type: 'stats', stats });
       engine.onFailure = text => send({ type: 'fatal', text });
+      engine.onOverrun = (count, reason) => send({ type: 'overrun', count, reason });
       engine.onAudio = audio => send({ type: 'audio', audio }, [audio.buffer as ArrayBuffer]);
       engine.onFrames = frames => {
         pendingFrames.push(...frames); if (pendingFrames.length > 100) pendingFrames.splice(0, pendingFrames.length - 100);

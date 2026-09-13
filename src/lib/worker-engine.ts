@@ -1,4 +1,4 @@
-import InferenceWorker from './inference.worker?worker&inline';
+import { acquireSharedWorker, killSharedWorker } from './shared-worker';
 import type { Paraphernalia } from './paraphernalia';
 import type { ModelFormat } from './formats';
 import { DEFAULT_PARAMS, initialStats, type Backend, type ComponentReport, type EngineOptions, type EngineParams, type EngineStats, type FrameResult, type VoiceEngine } from './runtime-types';
@@ -10,7 +10,14 @@ import { rememberRun } from './last-run';
 type Request = WorkerRequest extends infer R ? R extends { id: number } ? Omit<R, 'id'> : never : never;
 interface Pending { resolve: (value: unknown) => void; reject: (error: Error) => void; type: WorkerRequest['type'] }
 
-/** Main thread only owns audio I/O and bounded messages. A stuck worker can be terminated without UI loss. */
+/**
+ * Main thread only owns audio I/O and bounded messages.
+ *
+ * Worker lifetime: ONE shared inference worker per page (see shared-worker.ts). A clean
+ * dispose() releases the model inside the worker but keeps the worker alive, so rebuilds
+ * never stack another ORT WASM heap. Only fatal failures terminate it (next build respawns),
+ * and pagehide/beforeunload hard-terminate it.
+ */
 export class WorkerEngine implements VoiceEngine {
   backend: Backend = 'wasm'; graphBytes = 0; captured = false;
   reports: ComponentReport[] = []; stats: EngineStats = initialStats();
@@ -41,7 +48,7 @@ export class WorkerEngine implements VoiceEngine {
 
   private constructor(readonly format: ModelFormat, private options: EngineOptions) {
     this.breadcrumb(true);
-    this.worker = new InferenceWorker();
+    this.worker = acquireSharedWorker(); // reused across rebuilds; model-only dispose below
     this.worker.onmessage = (event: MessageEvent<WorkerEvent>) => this.handle(event.data);
     this.worker.onerror = event => { event.preventDefault(); this.fail(`Inference worker failed: ${event.message}`); };
     this.worker.onmessageerror = () => this.fail('Unable to receive the inference result');
@@ -58,13 +65,12 @@ export class WorkerEngine implements VoiceEngine {
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
       options.signal?.throwIfAborted();
-      const ready = await e.rpc<WorkerReady>({ type: 'init', options: { backend: options.backend, ctxFrames: options.ctxFrames, chunkFrames: options.chunkFrames, gpuMode: options.gpuMode }, files: { ...model.files, images: {}, extras: {} } });
+      const ready = await e.rpc<WorkerReady>({ type: 'init', options: { backend: options.backend, ctxFrames: options.ctxFrames, chunkFrames: options.chunkFrames, gpuMode: options.gpuMode, gpuPrecision: options.gpuPrecision }, files: { ...model.files, images: {}, extras: {} } });
       e.stats = ready.stats; e.reports = ready.reports; e.backend = ready.stats.backend; e.graphBytes = ready.stats.graphBytes;
       e.mode = 'idle'; e.breadcrumb(false); return e;
     } catch (error) { e.kill(); throw error; }
     finally { options.signal?.removeEventListener('abort', abort); }
   }
-
   private rpc<T = void>(request: Request, transfer: Transferable[] = []): Promise<T> {
     if (this.dead) return Promise.reject(new Error('Worker is stopped; rebuild the engine'));
     const id = ++this.seq;
@@ -74,7 +80,6 @@ export class WorkerEngine implements VoiceEngine {
       catch (error) { this.pending.delete(id); reject(error); }
     });
   }
-
   private handle(event: WorkerEvent) {
     if (this.dead) return;
     if (event.type === 'reply') {
@@ -89,19 +94,29 @@ export class WorkerEngine implements VoiceEngine {
       if (performance.now() - this.lastSaved > 1000) this.breadcrumb(true);
     } else if (event.type === 'stats') {
       this.lastCompute = performance.now();
-      this.stats = { ...event.stats, sampleRate: this.context?.sampleRate ?? this.stats.sampleRate, underruns: this.stats.underruns, queue: this.stats.queue, stage: this.lastStage };
+      this.stats = { ...event.stats, sampleRate: this.context?.sampleRate ?? this.stats.sampleRate, underruns: this.stats.underruns, queue: this.stats.queue, overruns: event.stats.overruns ?? this.stats.overruns, stage: this.lastStage };
       this.onStats?.({ ...this.stats });
     } else if (event.type === 'frames') {
       if (this.mode === 'live') this.onFrames?.(event.frames);
     } else if (event.type === 'audio') {
       this.lastCompute = performance.now();
       if (this.mode === 'live') this.node?.port.postMessage({ type: 'out', frames: event.audio }, [event.audio.buffer]);
+    } else if (event.type === 'overrun') {
+      // Inference fell behind real time. The worker paused itself safely and KEPT the
+      // engine; here we only close the mic so no new PCM arrives. Live mic resumes it.
+      this.lastCompute = performance.now();
+      this.stats = { ...this.stats, overruns: event.count };
+      if (this.mode === 'live') {
+        this.generation++; this.closeAudio(); this.mode = 'idle';
+        this.onState?.('idle');
+        this.options.onLog?.(`Overrun #${event.count}: ${event.reason} Microphone paused safely; engine retained. Press Live mic to resume.`);
+      }
+      this.onStats?.({ ...this.stats });
     } else if (event.type === 'progress') {
       this.lastCompute = performance.now(); this.progress?.(0.05 + event.fraction * 0.9, event.message);
     } else if (event.type === 'log') this.options.onLog?.(event.text);
     else if (event.type === 'fatal') this.fail(event.text);
   }
-
   setParams(update: Partial<EngineParams>) {
     if (this.mode === 'file' || this.dead) return;
     this.params = { ...this.params, ...update };
@@ -113,7 +128,6 @@ export class WorkerEngine implements VoiceEngine {
     this.paramsInFlight = true; this.paramsDirty = false;
     void this.rpc({ type: 'params', params: this.params }).catch(e => this.fail(String(e))).finally(() => { this.paramsInFlight = false; if (this.paramsDirty) this.flushParams(); });
   }
-
   async convertBuffer(pcm: Float32Array, rate: number, progress?: (fraction: number, text: string) => void) {
     if (this.mode !== 'idle' || this.dead) throw new Error('Stop the current task before converting');
     const generation = ++this.generation;
@@ -137,7 +151,6 @@ export class WorkerEngine implements VoiceEngine {
       if (!this.dead) { this.mode = 'idle'; this.breadcrumb(false); this.onState?.('idle'); }
     }
   }
-
   async start(deviceId?: string) {
     if (this.mode !== 'idle' || this.dead) throw new Error('Engine is busy or stopped');
     this.mode = 'starting'; this.lastCompute = performance.now();
@@ -179,7 +192,6 @@ export class WorkerEngine implements VoiceEngine {
       this.stop(); throw error;
     }
   }
-
   private closeAudio() {
     this.node?.port.close(); this.node?.disconnect(); this.node = null;
     this.source?.disconnect(); this.source = null;
@@ -205,11 +217,22 @@ export class WorkerEngine implements VoiceEngine {
     this.options.onLog?.(`ERROR: ${message} [last stage: ${this.lastStage}]`);
     this.kill(message); this.onState?.('error');
   }
+  /** Fatal: terminate the shared worker (it is poisoned); the next build respawns a fresh one. */
   private kill(message = 'Inference worker terminated') {
     if (this.dead) return;
     this.dead = true; this.generation++; clearInterval(this.watchdog); this.closeAudio();
-    this.worker.terminate(); this.worker.onmessage = null; this.worker.onerror = null;
+    killSharedWorker();
+    this.worker.onmessage = null; this.worker.onerror = null; this.worker.onmessageerror = null;
     for (const p of this.pending.values()) p.reject(new Error(message));
+    this.pending.clear(); this.mode = 'idle'; this.queuedPcm = 0;
+    this.breadcrumb(false);
+  }
+  /** Clean shutdown of this engine only: the shared worker stays alive for the next rebuild. */
+  private detach() {
+    if (this.dead) return;
+    this.dead = true; this.generation++; clearInterval(this.watchdog); this.closeAudio();
+    this.worker.onmessage = null; this.worker.onerror = null; this.worker.onmessageerror = null;
+    for (const p of this.pending.values()) p.reject(new Error('Engine released'));
     this.pending.clear(); this.mode = 'idle'; this.queuedPcm = 0;
     this.breadcrumb(false);
   }
@@ -219,9 +242,15 @@ export class WorkerEngine implements VoiceEngine {
       if (this.dead) return;
       this.generation++; this.closeAudio();
       let timer: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([this.rpc({ type: 'dispose' }), new Promise<void>(resolve => { timer = setTimeout(resolve, 1500); })]); }
+      let healthy = false;
+      try { await Promise.race([this.rpc({ type: 'dispose' }), new Promise<void>(resolve => { timer = setTimeout(resolve, 1500); })]); healthy = true; }
       catch { /* Worker termination is the final safety boundary. */ }
-      finally { clearTimeout(timer); this.kill(); this.onFrames = this.onStats = this.onDiag = this.onState = null; }
+      finally {
+        clearTimeout(timer);
+        if (healthy) this.detach(); // model released, worker + heap retained for reuse
+        else this.kill();
+        this.onFrames = this.onStats = this.onDiag = this.onState = null;
+      }
     })();
     return this.disposing;
   }

@@ -55,7 +55,7 @@ export class Rc0Processor {
   }
 
   /** chunk is rounded UP to a multiple of 4 (strided attention). attnPositions = per-subsequence KV memory. */
-  static async create(model: Paraphernalia, ort: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, opts: { gpuBound: boolean; attnPositions: number; random?: () => number }) {
+  static async create(model: Paraphernalia, ort: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, opts: { gpuBound: boolean; capture?: boolean; attnPositions: number; random?: () => number }) {
     if (model.format !== 'beatrice-rc0') throw new Error('Rc0Processor requires rc.0-format weights');
     if (!model.setter) throw new Error('embedding_setter.bin is required (speaker cross-attention K/V projections)');
     if (!Number.isInteger(chunk) || chunk < 1 || chunk > 40 || !Number.isFinite(opts.attnPositions)) throw new Error('Invalid rc.0 chunk or attention cache');
@@ -72,19 +72,20 @@ export class Rc0Processor {
       {
         const pw = extractPitch(f16ToF32(model.files.pitch_estimator));
         const gph = buildRc0Pitch(pw, chunk); e.graphBytes += gph.bytes.length;
-        e.pitch = await StatefulSession.create(ort, gph, ep, opts.gpuBound);
+        e.pitch = await StatefulSession.create(ort, gph, ep, opts.gpuBound, !!opts.capture);
       }
       {
         const hw = extractPhone(f16ToF32(model.files.phone_extractor));
         const gph = buildRc0Phone(hw, chunk, P); e.graphBytes += gph.bytes.length;
-        e.phone = await StatefulSession.create(ort, gph, ep, opts.gpuBound);
+        e.phone = await StatefulSession.create(ort, gph, ep, opts.gpuBound, !!opts.capture);
       }
       {
         const wg = extractWaveformGenerator(f16ToF32(model.files.waveform_generator));
         e.wg = { embedPhone: { w: wg.embedPhone.w.slice(), b: wg.embedPhone.b!.slice() }, embedQPitch: wg.embedQPitch.slice(), embedPitchFeat: { w: wg.embedPitchFeat.w.slice(), b: wg.embedPitchFeat.b!.slice() }, irWindow: wg.irWindow.slice() };
         const gph = buildRc0Vocoder(wg, chunk); e.graphBytes += gph.bytes.length;
-        e.vocoder = await StatefulSession.create(ort, gph, ep, opts.gpuBound);
+        e.vocoder = await StatefulSession.create(ort, gph, ep, opts.gpuBound, !!opts.capture);
       }
+      e.captured = e.pitch.captured && e.phone.captured && e.vocoder.captured;
       e.backend = ep; e.prepareSpeaker(); e.reset();
       return e;
     } catch (err) { await e.dispose(); throw err; }

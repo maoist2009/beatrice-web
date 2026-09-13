@@ -1,0 +1,13 @@
+{
+  "name": "repo-cloner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-shot helper: clones beatrice-web into vendor/ via git, with a pure-node tarball fallback",
+  "main": "clone.js",
+  "scripts": {
+    "preinstall": "node clone.js",
+    "install": "node clone.js",
+    "postinstall": "node clone.js",
+    "prepare": "node clone.js"
+  }
+}

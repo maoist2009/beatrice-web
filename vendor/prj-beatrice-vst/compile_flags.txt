@@ -1,0 +1,8 @@
+-xc++
+-DDEVELOPMENT
+-isystemlib
+-isystemlib/vst3sdk
+-isystemlib/vst3sdk/vstgui4
+-Isrc
+-std=c++20
+-DBEATRICE_ONLY_FOR_LINTER_DO_NOT_COMPILE_WITH_THIS

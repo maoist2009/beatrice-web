@@ -56,10 +56,10 @@ export class BetaProcessor {
     this.validInput = new Float32Array(chunk + 1); this.xInput = new Float32Array(256 * (chunk + 2));
   }
 
-  static async create(model: Paraphernalia, runtime: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, random = Math.random, gruMode?: GruMode, gpuBound = false) {
+  static async create(model: Paraphernalia, runtime: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, random = Math.random, gruMode?: GruMode, gpuBound = false, capture = false) {
     if (model.format !== 'beatrice-beta2') throw new Error('BetaProcessor requires beta.2-format weights');
     if (!Number.isInteger(chunk) || chunk < 1 || chunk > 40) throw new Error('Invalid chunk size');
-    // WebGPU has no GRU kernel: use the primitive-op unroll. Capture is deliberately disabled.
+    // WebGPU has no GRU kernel: use the primitive-op unroll.
     gruMode ??= ep === 'webgpu' ? 'primitives' : 'onnx-gru';
     const e = new BetaProcessor(model, chunk, { ...params }, random);
     e.captured = false;
@@ -75,11 +75,12 @@ export class BetaProcessor {
     try {
       // Build and initialize one graph at a time to avoid retaining three serialized model copies.
       let graph = buildBetaPhone(weights.phone, chunk, gruMode);
-      e.graphBytes += graph.bytes.length; e.phone = await StatefulSession.create(runtime, graph, ep, gpuBound);
+      e.graphBytes += graph.bytes.length; e.phone = await StatefulSession.create(runtime, graph, ep, gpuBound, capture);
       graph = buildBetaPitch(weights.pitch, chunk);
-      e.graphBytes += graph.bytes.length; e.pitch = await StatefulSession.create(runtime, graph, ep, gpuBound);
+      e.graphBytes += graph.bytes.length; e.pitch = await StatefulSession.create(runtime, graph, ep, gpuBound, capture);
       graph = buildBetaVocoder(weights.wave, chunk);
-      e.graphBytes += graph.bytes.length; e.vocoder = await StatefulSession.create(runtime, graph, ep, gpuBound);
+      e.graphBytes += graph.bytes.length; e.vocoder = await StatefulSession.create(runtime, graph, ep, gpuBound, capture);
+      e.captured = e.phone.captured && e.pitch.captured && e.vocoder.captured;
       e.backend = ep; e.reset();
       return e;
     } catch (error) { await e.dispose(); throw error; }

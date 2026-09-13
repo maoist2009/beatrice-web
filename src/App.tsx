@@ -6,7 +6,7 @@ import {
 import { collectFiles, exportParaphernaliaZip, parseParaphernalia, type Paraphernalia, type ParaphernaliaFiles } from "./lib/paraphernalia";
 import { deleteModel, listModels, loadModel, saveModel, storageEstimate, type CachedModelMeta } from "./lib/cache";
 import { CATALOG, EXTERNAL_MODELS, customHuggingFaceEntry, fetchCatalogModel, type CatalogEntry } from "./lib/catalog";
-import { createVoiceEngine, ORT_VERSION, webgpuAvailable, type VoiceEngine, type Backend, type GpuMode, type EngineStats, type FrameResult } from "./lib/engine";
+import { createVoiceEngine, hardTerminateWorker, ORT_VERSION, webgpuAvailable, type VoiceEngine, type BackendChoice, type GpuMode, type GpuPrecision, type EngineStats, type FrameResult } from "./lib/engine";
 import { formatLabel } from './lib/formats';
 import { BEATRICE_NOTICE } from './lib/notices';
 import { binToMidi, midiToHz } from "./lib/dsp";
@@ -19,7 +19,26 @@ interface Clip { name: string; url: string; pcm: Float32Array; sampleRate: numbe
 
 export default function App() {
   const [gpuOk, setGpuOk] = useState<boolean | null>(null);
-  const [backend, setBackend] = useState<Backend>("webgpu");
+  // Adreno 6xx WebGPU has two known failure modes: fp16/mediump garble and dispatch-bound
+  // throughput (CPU often wins there). Default such devices to the measured Auto backend
+  // with forced FP32. Choices persist across reloads (memory regression testing friendly).
+  const isQualcomm = typeof navigator !== 'undefined' && /adreno|qualcomm/i.test(navigator.userAgent);
+  // Backend defaults to WebGPU everywhere (Adreno included): the GPU path must be measured,
+  // not silently bypassed. Auto remains available as the explicit benchmark tool.
+  const [backend, setBackend] = useState<BackendChoice>(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('beatrice.backend') : null;
+    return saved === 'webgpu' || saved === 'wasm' || saved === 'auto' ? saved : 'webgpu';
+  });
+  const [gpuPrecision, setGpuPrecision] = useState<GpuPrecision>(() => {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('beatrice.gpuPrecision') : null;
+    if (saved === 'auto' || saved === 'fp32') return saved;
+    return /adreno|qualcomm/i.test(navigator.userAgent) ? 'fp32' : 'auto';
+  });
+  useEffect(() => { try { localStorage.setItem('beatrice.backend', backend); } catch { /* private mode */ } }, [backend]);
+  useEffect(() => { try { localStorage.setItem('beatrice.gpuPrecision', gpuPrecision); } catch { /* private mode */ } }, [gpuPrecision]);
+  // Experimental: replay recorded GPU commands to kill per-chunk dispatch overhead.
+  // Session-only by design — never silently persisted as a stability-critical default.
+  const [graphCapture, setGraphCapture] = useState(false);
   const [ctxFrames, setCtxFrames] = useState(64);
   const [chunkFrames, setChunkFrames] = useState(8);
   const [gpuMode, setGpuMode] = useState<GpuMode>('bound');
@@ -45,7 +64,7 @@ export default function App() {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState<string>("");
   const [live, setLive] = useState<FrameResult | null>(null);
-  const [p, setP] = useState({ speaker: 0, pitchShift: 0, formantShift: 0, intonation: 1, correction: 0, correctionType: 0 as 0 | 1, minMidi: 33, maxMidi: 100, inputGain: 0, outputGain: 0, monitor: false, averageSourcePitch: 0, vqNeighbors: 4, convert: true });
+  const [p, setP] = useState({ speaker: 0, pitchShift: 0, formantShift: 0, intonation: 1, correction: 0, correctionType: 0 as 0 | 1, minMidi: 33.125, maxMidi: 80.875, inputGain: 0, outputGain: 0, monitor: false, averageSourcePitch: 52, vqNeighbors: 0, convert: true });
   const [drawer, setDrawer] = useState<"left" | "right" | null>(null);
   const [inClip, setInClip] = useState<Clip | null>(null);
   const [outClip, setOutClip] = useState<{ url: string; duration: number } | null>(null);
@@ -73,6 +92,15 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  useEffect(() => {
+    // Page going away (including Android same-tab reload): hard-terminate the shared
+    // inference worker so its ORT WASM heap and GPU buffers are freed for good instead of
+    // stacking inside the reused renderer process.
+    const hard = () => hardTerminateWorker();
+    window.addEventListener('pagehide', hard);
+    window.addEventListener('beforeunload', hard);
+    return () => { window.removeEventListener('pagehide', hard); window.removeEventListener('beforeunload', hard); };
+  }, []);
 
   useEffect(() => { webgpuAvailable().then((ok) => { setGpuOk(ok); if (!ok) setBackend("wasm"); }); refreshCache(); }, []);
   const refreshCache = () => { listModels().then(setCached).catch(() => {}); storageEstimate().then(setStorage); };
@@ -85,7 +113,21 @@ export default function App() {
     setModel(pp);
     hist.current = []; setLive(null); setDiag(null); setError(null);
     log(`${formatLabel(pp.format)} selected; original TOML version ${pp.version}`);
-    setP((s) => ({ ...s, speaker: 0, averageSourcePitch: pp.voices[0]?.averagePitch != null ? (pp.voices[0].averagePitch - 33) * 8 : 0 }));
+    // Match ProcessorProxy/ProcessorCore1/2 model-load behavior: source pitch stays at
+    // the official 52.0-unit default, while the model's TOML average_pitch (MIDI value)
+    // becomes the initial pitch shift. Do not convert TOML average_pitch to 96-bin space;
+    // the official VST does not do that conversion at this boundary.
+    const targetPitch = pp.voices[0]?.averagePitch ?? 52;
+    setP((s) => ({
+      ...s,
+      speaker: 0,
+      formantShift: 0,
+      pitchShift: Math.max(-24, Math.min(24, targetPitch - 52)),
+      averageSourcePitch: 52,
+      minMidi: 33.125,
+      maxMidi: 80.875,
+      vqNeighbors: pp.format === 'beatrice-rc0' ? 0 : s.vqNeighbors,
+    }));
     log(`loaded "${pp.name}" v${pp.version}: ${pp.speakers.nSpeakers} speakers, ${(Object.values(pp.sizes).reduce((a, b) => a + b, 0) / 1e6).toFixed(1)} MB of float16 weights`);
     if (persist) {
       const digest = await crypto.subtle.digest('SHA-256', files.waveform_generator);
@@ -142,7 +184,7 @@ export default function App() {
     try {
       setError(null);
       await engineRef.current?.dispose(); engineRef.current = null; setEngine(null);
-      const e = await createVoiceEngine(model, { backend, ctxFrames, chunkFrames, gpuMode, signal: controller.signal, onLog: log, onStage: setStage });
+      const e = await createVoiceEngine(model, { backend, ctxFrames, chunkFrames, gpuMode, gpuPrecision, graphCapture, signal: controller.signal, onLog: log, onStage: setStage });
       if (controller.signal.aborted) { await e.dispose(); return; }
       e.onStats = (s) => setStats({ ...s });
       e.onFrames = (fr) => { hist.current.push(...fr); if (hist.current.length > HIST) hist.current.splice(0, hist.current.length - HIST); setLive(fr[fr.length - 1]); };
@@ -177,7 +219,8 @@ export default function App() {
     await current?.dispose(); setStats(null); setStage('Worker released. Rebuild to continue.');
   };
   const downloadDiagnostics = () => {
-    const blob = new Blob([JSON.stringify({ app: 'Beatrice Web stability build 2', format: model?.format, stage, backend, gpuMode, ctxFrames, chunkFrames, stats, logs, userAgent: navigator.userAgent, note: 'Tracked buffers are not total GPU/process memory. No audio or model bytes included.' }, null, 2)], { type: 'application/json' });
+    const mem = (performance as unknown as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+    const blob = new Blob([JSON.stringify({ app: 'Beatrice Web stability build 3 (shared worker)', format: model?.format, stage, backend, gpuMode, gpuPrecision, ctxFrames, chunkFrames, stats, overruns: stats?.overruns ?? 0, jsHeap: mem ? { usedMB: +(mem.usedJSHeapSize / 1048576).toFixed(1), totalMB: +(mem.totalJSHeapSize / 1048576).toFixed(1), limitMB: +(mem.jsHeapSizeLimit / 1048576).toFixed(1) } : null, logs, userAgent: navigator.userAgent, note: 'Tracked buffers are not total GPU/process memory. No audio or model bytes included.' }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob), link = document.createElement('a');
     link.href = url; link.download = 'beatrice-diagnostics.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
@@ -377,17 +420,24 @@ export default function App() {
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <label className="flex flex-col gap-1"><span className="lbl">Backend</span>
-            <select className="inp" value={backend} onChange={(e) => setBackend(e.target.value as Backend)}><option value="webgpu" disabled={gpuOk === false}>WebGPU (capture OFF)</option><option value="wasm">WASM (safe CPU)</option></select></label>
-          <label className="flex flex-col gap-1"><span className="lbl">GPU memory mode</span><select disabled={backend !== 'webgpu'} className="inp" value={gpuMode} onChange={e => setGpuMode(e.target.value as GpuMode)}><option value="bound">Bounded GPU I/O</option><option value="compatible">Compatibility (CPU I/O)</option></select></label>
+            <select className="inp" value={backend} onChange={(e) => setBackend(e.target.value as BackendChoice)}><option value="auto">Auto — bench both, use faster</option><option value="webgpu" disabled={gpuOk === false}>WebGPU</option><option value="wasm">WASM (safe CPU)</option></select></label>
+          <label className="flex flex-col gap-1"><span className="lbl">GPU memory mode</span><select disabled={backend === 'wasm'} className="inp" value={gpuMode} onChange={e => setGpuMode(e.target.value as GpuMode)}><option value="bound">Bounded GPU I/O</option><option value="compatible">Compatibility (CPU I/O)</option></select></label>
+          <label className="flex flex-col gap-1"><span className="lbl">GPU precision</span>
+            <select disabled={backend === 'wasm'} className="inp" value={gpuPrecision} onChange={e => setGpuPrecision(e.target.value as GpuPrecision)}><option value="auto">Auto (fp16 if driver-safe)</option><option value="fp32">Force FP32 (Adreno-safe)</option></select></label>
           <label className="flex flex-col gap-1"><span className="lbl">{isBeta ? 'Attention memory (rc.0 only)' : 'Attention memory (rc.0)'}</span>
             <select disabled={isBeta} className="inp" value={ctxFrames} onChange={(e) => setCtxFrames(Number(e.target.value))}><option value={64}>0.64 s</option><option value={128}>1.28 s</option><option value={256}>2.56 s</option><option value={512}>5.12 s</option></select></label>
           <label className="flex flex-col gap-1 col-span-2"><span className="lbl">Chunk (buffering latency)</span>
             <select className="inp" value={chunkFrames} onChange={(e) => setChunkFrames(Number(e.target.value))}><option value={4}>4 · 40 ms</option><option value={8}>8 · 80 ms</option><option value={12}>12 · 120 ms</option><option value={20}>20 · 200 ms</option><option value={40}>40 · 400 ms</option></select></label>
         </div>
+        <label className="flex items-start gap-2 text-xs mt-2 leading-5">
+          <input type="checkbox" className="size-4 accent-sky-400 mt-0.5" checked={graphCapture} disabled={backend === 'wasm' || locked} onChange={e => setGraphCapture(e.target.checked)} />
+          <span><b className="text-slate-300">Graph capture</b> (experimental): record the GPU command sequence once, replay it every chunk — removes most per-chunk dispatch overhead, the main thing holding WebGPU back on mobile. Falls back to capture OFF automatically if the driver rejects it.</span>
+        </label>
         </fieldset>
-        <p className="text-[11px] text-slate-400 mt-2">Inference runs in an isolated, terminable Worker. <b className="text-slate-200">Graph capture is OFF</b> in both GPU modes. Bounded I/O keeps recurrent state on GPU with a 32 MiB app-owned buffer cap; compatibility mode uses CPU I/O but still runs supported network operators on GPU.</p>
+        <p className="text-[11px] text-slate-400 mt-2">Inference runs in an isolated, terminable Worker. Graph capture defaults <b className="text-slate-200">OFF</b> for stability (experimental toggle above; auto-fallback if the driver rejects it). Bounded I/O keeps recurrent state on GPU with a 32 MiB app-owned buffer cap; compatibility mode uses CPU I/O but still runs supported network operators on GPU.</p>
         <p className="text-[11px] text-amber-300/90 mt-2">Beatrice 2.0.0-rc.1/rc.2/rc.3 are VST releases, not new model formats — the trainer still exports <code>PARAPHERNALIA_VERSION = &quot;2.0.0-rc.0&quot;</code>, so the rc.3 official models (つくよみちゃん / 刻鳴時雨 / OLUNE) load with this rc.0 path.</p>
         <p className="text-[11px] text-slate-500 mt-2">These catalog voices are Japanese or English; Mandarin quality is not validated. The trainer documents Japanese content-extractor data and English synthesis pretraining. Changing a speaker model alone does not guarantee accurate Chinese pronunciation.</p>
+        {isQualcomm && <p className="text-[11px] text-red-300/90 mt-2">Qualcomm Adreno GPU detected: precision defaults to <b>Force FP32</b>, because Adreno 6xx fp16/mediump paths can garble this network's output. The backend stays WebGPU so the GPU path is measured, not bypassed — build once with <b>Auto</b> to get both ms/chunk numbers in the log, and try <b>Graph capture</b> to push the GPU path further. See “Why WASM can legitimately beat WebGPU on Adreno 6xx” below.</p>}
         <p className="text-[10px] text-slate-500 mt-1">Adreno 6/7: use an up-to-date WebGPU-capable browser, FP32, a 0.64 s attention cache and 80-200 ms chunks. Hardware/driver support varies; no family-wide compatibility or latency guarantee. If unstable, rebuild in compatibility mode or WASM.</p>
         <div className="flex flex-wrap gap-2 mt-3">
           <button className="btn" disabled={!model || locked} onClick={buildEngine}><Zap size={14} /> Build & compile</button>
@@ -403,7 +453,9 @@ export default function App() {
             <dt className="text-slate-500">synthesis / chunk</dt><dd>{stats.synthMs.toFixed(1)} ms</dd>
             <dt className="text-slate-500">RTF</dt><dd className={stats.rtf > 0.9 ? "text-red-300" : "text-emerald-300"}>{stats.measured ? stats.rtf.toFixed(3) : 'waiting for completed audio chunk'}</dd>
             <dt className="text-slate-500">frames / underruns</dt><dd>{stats.frames} / {stats.underruns}</dd>
+            <dt className="text-slate-500">overrun safe-pauses</dt><dd className={stats.overruns ? 'text-amber-300' : ''}>{stats.overruns ?? 0}{stats.overruns ? ' (mic paused, engine kept — Live mic resumes)' : ''}</dd>
             <dt className="text-slate-500">graph bytes</dt><dd>{fmt(stats.graphBytes)}</dd>
+            <dt className="text-slate-500">graph capture</dt><dd>{stats.capture ? 'ON — replaying recorded commands' : 'OFF — per-op dispatch'}</dd>
             <dt className="text-slate-500">actual chunk</dt><dd>{(stats.chunkFrames ?? chunkFrames) * 10} ms</dd>
             <dt className="text-slate-500">tracked GPU buffers</dt><dd>{stats.resources?.gpuBuffers ?? 0} / {fmt(stats.resources?.gpuBytes ?? 0)}</dd>
             <dt className="text-slate-500">sessions / in-flight</dt><dd>{stats.resources?.sessions ?? 0} / {stats.resources?.inFlight ?? 0}</dd>
@@ -411,6 +463,17 @@ export default function App() {
           </dl>
         )}
         <p role="status" className="text-xs text-slate-400 mt-2 break-words">{stage}</p>
+        <HeapMeter />
+        <details className="mt-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2">
+          <summary className="text-xs text-slate-300 cursor-pointer select-none">Why WASM can legitimately beat WebGPU on Adreno 6xx — and how to verify it on this device</summary>
+          <ul className="text-[11px] text-slate-500 mt-2 space-y-1.5 list-disc pl-4">
+            <li><b className="text-slate-300">Dispatch overhead dominates.</b> Every 40–200 ms chunk executes three networks as a long sequence of small WebGPU dispatches. Each dispatch costs JS encoding + Dawn validation + Android driver submission ≈ 0.2–1 ms on mobile (≈ 0.02–0.05 ms on desktop). ~100 dispatches/chunk ⇒ 20–100 ms of pure overhead before a single multiply runs.</li>
+            <li><b className="text-slate-300">fp16 is locked out by correctness.</b> GPU throughput on these nets mainly comes from fp16. Adreno 6xx fp16 corrupts this network (the garble) ⇒ forced fp32 ⇒ the GPU's main advantage is gone while its overhead stays.</li>
+            <li><b className="text-slate-300">Per-run readbacks.</b> Vocoder output is read back to CPU after each network run (JS float64 phase synthesis); every mapAsync is a sync point serializing the pipeline.</li>
+            <li><b className="text-slate-300">Graph capture is the one real fix.</b> Replaying recorded commands collapses per-run dispatch cost — that's the experimental toggle above, OFF by default for stability (auto fallback if the driver rejects it).</li>
+          </ul>
+          <p className="text-[11px] text-slate-500 mt-2">Verify: build once with <b className="text-slate-300">Auto</b> — the log prints measured WebGPU vs WASM ms/chunk. Then rebuild with <b className="text-slate-300">Graph capture</b> and compare “networks / chunk”. If capture-OFF fp32 WebGPU still loses, the residual gap is driver-side dispatch latency — not addressable from this app's layer, which is exactly what the measurement proves.</p>
+        </details>
         <p className="text-[10px] text-slate-500 mt-1">Tracked GPU I/O excludes ORT kernels/weights/driver allocation; it is not total VRAM usage.</p>
         <div className="flex gap-2 mt-3"><button className="btn-sm" onClick={() => void resetWorker()}>Stop / release Worker</button><button className="btn-sm" onClick={downloadDiagnostics}>Save diagnostics</button></div>
       </Card>
@@ -423,17 +486,17 @@ export default function App() {
         <fieldset className="min-w-0" disabled={!!conv || !!busy || !!dl}>
         <Slider label="Pitch shift" unit={(p.pitchShift >= 0 ? "+" : "") + p.pitchShift + " st"} min={-24} max={24} step={1} value={p.pitchShift} onChange={(v) => setP((s) => ({ ...s, pitchShift: v }))} />
         <Slider label="Formant shift" unit={`${(p.formantShift >= 0 ? "+" : "") + p.formantShift} st → #${Math.round(p.formantShift * 2 + 4)}`} min={-2} max={2} step={0.5} value={p.formantShift} onChange={(v) => setP((s) => ({ ...s, formantShift: v }))} />
-        <Slider label="Intonation intensity" unit={p.intonation.toFixed(2)} min={0} max={2} step={0.05} value={p.intonation} onChange={(v) => setP((s) => ({ ...s, intonation: v }))} />
+        <Slider label="Intonation intensity" unit={p.intonation.toFixed(2)} min={-1} max={3} step={0.05} value={p.intonation} onChange={(v) => setP((s) => ({ ...s, intonation: v }))} />
         <Slider label="Pitch correction" unit={p.correction.toFixed(2)} min={0} max={1} step={0.05} value={p.correction} onChange={(v) => setP((s) => ({ ...s, correction: v }))} />
         <div className="flex gap-2 text-xs mb-3">
           <button className={`btn-sm flex-1 ${p.correctionType === 0 ? "bg-sky-700" : ""}`} onClick={() => setP((s) => ({ ...s, correctionType: 0 }))}>type 0 · x|x|⁻ᵖ</button>
           <button className={`btn-sm flex-1 ${p.correctionType === 1 ? "bg-sky-700" : ""}`} onClick={() => setP((s) => ({ ...s, correctionType: 1 }))}>type 1 · |x|^(1/(1−p))</button>
         </div>
-        <Slider label="Average source pitch" unit={`${p.averageSourcePitch.toFixed(0)} bins · MIDI ${(33 + p.averageSourcePitch / 8).toFixed(1)}`} min={0} max={447} step={1} value={p.averageSourcePitch} onChange={(v) => setP((s) => ({ ...s, averageSourcePitch: v }))} />
-        <Slider label="Min source pitch" unit={`MIDI ${p.minMidi}`} min={20} max={100} step={1} value={p.minMidi} onChange={(v) => setP((s) => ({ ...s, minMidi: v }))} />
-        <Slider label="Max source pitch" unit={`MIDI ${p.maxMidi}`} min={40} max={128} step={1} value={p.maxMidi} onChange={(v) => setP((s) => ({ ...s, maxMidi: v }))} />
-        <Slider label="Input gain" unit={`${p.inputGain} dB`} min={-30} max={30} step={1} value={p.inputGain} onChange={(v) => setP((s) => ({ ...s, inputGain: v }))} />
-        <Slider label="Output gain" unit={`${p.outputGain} dB`} min={-30} max={30} step={1} value={p.outputGain} onChange={(v) => setP((s) => ({ ...s, outputGain: v }))} />
+        <Slider label="Average source pitch (official unit)" unit={p.averageSourcePitch.toFixed(3)} min={0} max={128} step={0.125} value={p.averageSourcePitch} onChange={(v) => setP((s) => ({ ...s, averageSourcePitch: v }))} />
+        <Slider label="Min source pitch" unit={`MIDI ${p.minMidi.toFixed(3)}`} min={0} max={128} step={0.125} value={p.minMidi} onChange={(v) => setP((s) => ({ ...s, minMidi: v }))} />
+        <Slider label="Max source pitch" unit={`MIDI ${p.maxMidi.toFixed(3)}`} min={0} max={128} step={0.125} value={p.maxMidi} onChange={(v) => setP((s) => ({ ...s, maxMidi: v }))} />
+        <Slider label="Input gain" unit={`${p.inputGain} dB`} min={-60} max={20} step={1} value={p.inputGain} onChange={(v) => setP((s) => ({ ...s, inputGain: v }))} />
+        <Slider label="Output gain" unit={`${p.outputGain} dB`} min={-60} max={20} step={1} value={p.outputGain} onChange={(v) => setP((s) => ({ ...s, outputGain: v }))} />
         {!isBeta && <Slider label="VQ neighbours (kNN-VC top-k)" unit={p.vqNeighbors === 0 ? "off" : String(p.vqNeighbors)} min={0} max={8} step={1} value={p.vqNeighbors} onChange={(v) => setP((s) => ({ ...s, vqNeighbors: v }))} />}
         {isBeta && <p className="text-xs text-slate-500 mb-3">beta.2 does not contain VQ or channel RMS normalization. These are not emulated.</p>}
         <label className="flex items-center gap-2 text-xs mt-1 leading-5"><input type="checkbox" className="size-4 accent-sky-400" checked={p.convert} onChange={(e) => setP((s) => ({ ...s, convert: e.target.checked }))} /> Conversion ON (realtime: synthesise the 24 kHz output)</label>
@@ -660,6 +723,41 @@ function StatusPill({ s }: { s: string }) {
   const cls = s === "verified" ? "bg-emerald-900 text-emerald-200" : "bg-amber-900 text-amber-200";
   return <span className={`px-2 py-0.5 rounded ${cls}`}>{s}</span>;
 }
+/** Chrome-only live JS heap meter (green/yellow/red). Reload a few times and watch whether
+ *  used/max still climbs — if it stays flat, the per-reload WASM-arena stacking is gone. */
+function HeapMeter() {
+  const supported = typeof performance !== 'undefined' && !!(performance as unknown as { memory?: unknown }).memory;
+  const [s, setS] = useState<{ used: number; total: number; limit: number; max: number } | null>(null);
+  useEffect(() => {
+    if (!supported) return;
+    let max = 0;
+    const read = () => {
+      const m = (performance as unknown as { memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+      max = Math.max(max, m.usedJSHeapSize);
+      setS({ used: m.usedJSHeapSize, total: m.totalJSHeapSize, limit: m.jsHeapSizeLimit, max });
+    };
+    read();
+    const t = setInterval(read, 1000);
+    return () => clearInterval(t);
+  }, [supported]);
+  if (!supported) return <p className="text-[10px] text-slate-600 mt-2">JS heap meter: not exposed by this browser (Chrome-only performance.memory). Open in Chrome to watch reload memory growth.</p>;
+  const pct = s ? s.used / s.limit : 0;
+  const bar = pct < 0.5 ? 'bg-emerald-400' : pct < 0.75 ? 'bg-amber-400' : 'bg-red-500';
+  const label = pct < 0.5 ? 'text-emerald-300' : pct < 0.75 ? 'text-amber-300' : 'text-red-300';
+  const mb = (n: number) => (n / 1048576).toFixed(0);
+  return (
+    <div className="mt-3">
+      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+        <span>JS heap (Chrome, reload watch)</span>
+        {s && <span className={`font-mono ${label}`}>{mb(s.used)} MB used · max {mb(s.max)} MB · limit {mb(s.limit)} MB</span>}
+      </div>
+      <div className="h-1.5 bg-slate-800 rounded overflow-hidden">
+        <div className={`h-full transition-all ${bar}`} style={{ width: `${Math.min(100, pct * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function Slider({ label, unit, min, max, step, value, onChange }: { label: string; unit: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void }) {
   return (
     <label className="block mb-2.5 text-xs">

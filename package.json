@@ -12,9 +12,8 @@
     "clsx": "2.1.1",
     "fake-indexeddb": "^6.2.5",
     "fflate": "^0.8.3",
-    "lucide-react": "^1.44.0",
+    "lucide-react": "^1.45.0",
     "onnxruntime-web": "^1.29.0",
-    "playwright": "^1.63.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "tailwind-merge": "3.4.0"

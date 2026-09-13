@@ -1,8 +1,9 @@
 // Main-thread API only. Neural model building and inference are isolated in a disposable Worker.
 import type { Paraphernalia } from './paraphernalia';
 import type { EngineOptions, VoiceEngine } from './runtime-types';
-export type { Backend, GpuMode, ComponentReport, EngineOptions, EngineParams, EngineStats, FrameResult, VoiceEngine, ResourceStats } from './runtime-types';
+export type { Backend, BackendChoice, GpuPrecision, GpuMode, ComponentReport, EngineOptions, EngineParams, EngineStats, FrameResult, VoiceEngine, ResourceStats } from './runtime-types';
 export { loadOrt, ORT_VERSION } from './ort-runtime';
+export { hardTerminateWorker, sharedWorkerAlive } from './shared-worker';
 export async function createVoiceEngine(model: Paraphernalia, options: EngineOptions): Promise<VoiceEngine> {
   const { WorkerEngine } = await import('./worker-engine');
   return WorkerEngine.create(model, options);

@@ -1,7 +1,7 @@
 // Compute-only engine. No DOM, microphone, audio decoding, or unscheduled Promise recursion.
 import type { Paraphernalia } from './paraphernalia';
 import type { ModelFormat } from './formats';
-import { loadOrt } from './ort-runtime';
+import { loadOrt, prepareWebGpu, webgpuAdapterInfo } from './ort-runtime';
 import { CooperativePump } from './cooperative-pump';
 import { sessionResources, type OrtRuntime, type Backend } from './session';
 import { DEFAULT_PARAMS, initialStats, type EngineOptions, type EngineParams, type EngineStats, type FrameResult, type ComponentReport } from './runtime-types';
@@ -13,17 +13,20 @@ export interface StreamProcessor {
   finish(): Float32Array;
   next(read: (sample: number) => number, validFrames?: number): Promise<{ audio: Float32Array; frames: FrameResult[]; inferMs: number; synthMs: number }>;
 }
-export type ProcessorFactory = (model: Paraphernalia, ort: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, gpuBound: boolean) => Promise<StreamProcessor>;
+export type ProcessorFactory = (model: Paraphernalia, ort: OrtRuntime, ep: Backend, chunk: number, params: EngineParams, gpuBound: boolean, capture: boolean) => Promise<StreamProcessor>;
 const yieldTask = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 export class StreamEngine {
   backend: Backend = 'wasm'; graphBytes = 0; captured = false; gpuBound = false;
   reports: ComponentReport[] = []; stats: EngineStats = initialStats();
   params = { ...DEFAULT_PARAMS };
+  overruns = 0;
   onFrames: ((frames: FrameResult[]) => void) | null = null;
   onStats: ((stats: EngineStats) => void) | null = null;
   onAudio: ((audio: Float32Array) => void) | null = null;
   onFailure: ((message: string) => void) | null = null;
+  /** Overrun safe-pause: mic input stops, but the engine is retained and restartable. */
+  onOverrun: ((count: number, reason: string) => void) | null = null;
   private processor!: StreamProcessor;
   private ring = new Float32Array(16000 * 2);
   private snapshot = new Float32Array(160 * 86);
@@ -39,26 +42,81 @@ export class StreamEngine {
   static async create(model: Paraphernalia, options: EngineOptions, factory: ProcessorFactory, format: ModelFormat) {
     const e = new StreamEngine(format, model.speakers.nSpeakers, options);
     const ort = await loadOrt();
-    const attempts: { ep: Backend; bound: boolean }[] = options.backend === 'webgpu'
-      ? [...(options.gpuMode === 'compatible' ? [] : [{ ep: 'webgpu' as const, bound: true }]), { ep: 'webgpu', bound: false }, { ep: 'wasm', bound: false }]
-      : [{ ep: 'wasm', bound: false }];
+    if (options.backend === 'webgpu' || options.backend === 'auto') {
+      await prepareWebGpu(ort, { forceFp32: options.gpuPrecision === 'fp32', onLog: options.onLog });
+    }
+    const warmup = async (c: StreamProcessor) => {
+      let ms = 0;
+      for (let n = 0; n < 3; n++) { await yieldTask(); const m = await c.next(() => 0, c.chunk * 4); ms = m.inferMs; }
+      return ms;
+    };
+    const measure = async (c: StreamProcessor) => {
+      let ms = 0;
+      for (let n = 0; n < 5; n++) { await yieldTask(); const m = await c.next(() => 0, c.chunk * 4); ms += m.inferMs + m.synthMs; }
+      return ms / 5;
+    };
+    const adopt = (candidate: StreamProcessor, ep: Backend, bound: boolean, warmMs: number) => {
+      candidate.reset(); e.processor = candidate; e.backend = ep; e.gpuBound = bound;
+      e.graphBytes = candidate.graphBytes; e.captured = candidate.captured;
+      e.stats = { ...initialStats(), backend: ep, chunkFrames: candidate.chunk, graphBytes: e.graphBytes, ioMode: bound ? 'gpu-bound' : 'cpu-tensors', capture: candidate.captured, resources: sessionResources(), overruns: e.overruns };
+      if (ep === 'webgpu') {
+        const info = webgpuAdapterInfo() ?? (ort.env.webgpu as unknown as { adapter?: { info?: { vendor?: string; architecture?: string; description?: string } } }).adapter?.info;
+        if (info) e.stats.adapter = { vendor: info.vendor ?? '', architecture: info.architecture ?? '', description: info.description ?? '' };
+        const dev = (ort.env.webgpu as unknown as { device?: { features?: { has(f: string): boolean } } }).device;
+        const f16 = dev?.features?.has?.('shader-f16');
+        options.onLog?.(`WebGPU kernel precision: ${f16 === undefined ? 'device not exposed by ORT' : f16 ? 'fp16-capable device (ORT may use f16 kernels)' : 'fp32 device (no shader-f16)'}; graph capture ${candidate.captured ? 'ON (replaying recorded commands)' : 'OFF (per-op dispatch)'}`);
+      }
+      options.onLog?.(`Ready in isolated worker: ${format}, ${candidate.chunk * 10} ms chunk; warmup networks ${warmMs.toFixed(1)} ms. Warmup is not an audio-latency measurement.`);
+    };
+    e.reports = Object.entries(model.sizes).filter(([, bytes]) => bytes > 0).map(([name, bytes]) => ({ name: `${name}.bin`, bytes, status: 'verified', detail: `${format} export layout. Not a physical-device latency/parity guarantee.` }));
+
+    if (options.backend === 'auto') {
+      // Measure BOTH backends on this device and keep the faster one. On Adreno 6xx this
+      // typically picks WASM (GPU dispatch overhead > GPU compute for this network); on desktop
+      // GPUs it typically picks WebGPU. No more guessing from the user.
+      const gpuBound = options.gpuMode !== 'compatible';
+      const cap = !!options.graphCapture;
+      const bench = async (ep: Backend, bound: boolean, capture: boolean): Promise<{ candidate: StreamProcessor; ms: number } | null> => {
+        let candidate: StreamProcessor | null = null;
+        try {
+          options.onLog?.(`Benchmarking ${ep}${bound ? ' (bounded GPU I/O)' : ''}${capture ? ' (capture ON)' : ''}…`);
+          await yieldTask();
+          candidate = await factory(model, ort, ep, options.chunkFrames, e.params, bound, capture);
+          const warm = await warmup(candidate);
+          const ms = await measure(candidate);
+          options.onLog?.(`${ep}: ${ms.toFixed(1)} ms/chunk after warmup (${warm.toFixed(1)} ms warmup)`);
+          return { candidate, ms };
+        } catch (error) {
+          try { await candidate?.dispose(); } catch (cleanup) { options.onLog?.(`Cleanup: ${String(cleanup)}`); }
+          options.onLog?.(`${ep} benchmark unavailable: ${String(error)}`);
+          return null;
+        }
+      };
+      const gpu = await bench('webgpu', gpuBound, cap);
+      const cpu = await bench('wasm', false, false);
+      const useGpu = !!gpu && (!cpu || gpu.ms <= cpu.ms);
+      options.onLog?.(`auto-backend measured: WebGPU ${gpu ? `${gpu.ms.toFixed(1)} ms/chunk` : 'n/a'} vs WASM ${cpu ? `${cpu.ms.toFixed(1)} ms/chunk` : 'n/a'} → ${useGpu ? 'WebGPU' : 'WASM'}`);
+      const loser = useGpu ? cpu : gpu;
+      try { await loser?.candidate.dispose(); } catch { /* bench cleanup best-effort */ }
+      const winner = useGpu ? gpu : cpu;
+      if (!winner) throw new Error('No backend passed the auto benchmark');
+      adopt(winner.candidate, winner.candidate.backend, useGpu && gpuBound, winner.ms);
+      return e;
+    }
+
+    const captureWanted = !!options.graphCapture;
+    const attempts: { ep: Backend; bound: boolean; capture: boolean }[] = options.backend === 'webgpu'
+      ? [...(options.gpuMode === 'compatible' ? [] : captureWanted ? [{ ep: 'webgpu' as const, bound: true, capture: true }, { ep: 'webgpu' as const, bound: true, capture: false }] : [{ ep: 'webgpu' as const, bound: true, capture: false }]), { ep: 'webgpu', bound: false, capture: false }, { ep: 'wasm', bound: false, capture: false }]
+      : [{ ep: 'wasm', bound: false, capture: false }];
     let last: unknown;
-    for (const { ep, bound } of attempts) {
+    for (const { ep, bound, capture: attemptCapture } of attempts) {
       let candidate: StreamProcessor | null = null;
       try {
-        options.onLog?.(`Initializing ${ep}, ${bound ? 'bounded GPU I/O' : 'CPU I/O'}, capture OFF`);
+        options.onLog?.(`Initializing ${ep}, ${bound ? 'bounded GPU I/O' : 'CPU I/O'}, capture ${attemptCapture ? 'ON' : 'OFF'}`);
         await yieldTask();
-        candidate = await factory(model, ort, ep, options.chunkFrames, e.params, bound);
-        let measured: Awaited<ReturnType<StreamProcessor['next']>> | null = null;
-        for (let n = 0; n < 3; n++) { await yieldTask(); measured = await candidate.next(() => 0, candidate.chunk * 4); }
-        candidate.reset(); e.processor = candidate; e.backend = ep; e.gpuBound = bound;
-        e.graphBytes = candidate.graphBytes;
-        e.stats = { ...initialStats(), backend: ep, chunkFrames: candidate.chunk, graphBytes: e.graphBytes, ioMode: bound ? 'gpu-bound' : 'cpu-tensors', capture: false, resources: sessionResources() };
-        if (ep === 'webgpu') {
-          const info = (ort.env.webgpu as unknown as { adapter?: { info?: { vendor?: string; architecture?: string; description?: string } } }).adapter?.info;
-          if (info) e.stats.adapter = { vendor: info.vendor ?? '', architecture: info.architecture ?? '', description: info.description ?? '' };
-        }
-        options.onLog?.(`Ready in isolated worker: ${format}, ${candidate.chunk * 10} ms chunk; warmup networks ${measured!.inferMs.toFixed(1)} ms. Warmup is not an audio-latency measurement.`);
+        candidate = await factory(model, ort, ep, options.chunkFrames, e.params, bound, attemptCapture);
+        const warmMs = await warmup(candidate);
+        adopt(candidate, ep, bound, warmMs);
         break;
       } catch (error) {
         last = error;
@@ -68,10 +126,8 @@ export class StreamEngine {
       }
     }
     if (!e.processor) throw new Error(`No backend passed initialization/warmup: ${String(last)}`);
-    e.reports = Object.entries(model.sizes).filter(([, bytes]) => bytes > 0).map(([name, bytes]) => ({ name: `${name}.bin`, bytes, status: 'verified', detail: `${format} export layout. Not a physical-device latency/parity guarantee.` }));
     return e;
   }
-
   setParams(update: Partial<EngineParams>) {
     if (this.mode === 'file' || this.mode === 'disposed') return;
     const p = { ...this.params, ...update };
@@ -80,13 +136,21 @@ export class StreamEngine {
     if (p.inputGain < 0 || p.outputGain < 0 || p.vqNeighbors < 0 || p.vqNeighbors > 8 || p.minMidi >= p.maxMidi) throw new Error('Invalid gain, VQ, or pitch range');
     this.params = p; // Applied only immediately before the next chunk, never midway through a run.
   }
-
   private update(part: { inferMs: number; synthMs: number }, force = false) {
-    Object.assign(this.stats, { inferMs: part.inferMs, synthMs: part.synthMs, rtf: (part.inferMs + part.synthMs) / (this.processor.chunk * 10), frames: this.processor.outputFrame, measured: true, resources: sessionResources() });
+    Object.assign(this.stats, { inferMs: part.inferMs, synthMs: part.synthMs, rtf: (part.inferMs + part.synthMs) / (this.processor.chunk * 10), frames: this.processor.outputFrame, measured: true, overruns: this.overruns, resources: sessionResources() });
     const now = performance.now();
     if (force || now - this.lastDisplay > 150) { this.lastDisplay = now; this.onStats?.({ ...this.stats }); }
   }
-
+  /** Overrun: fall behind real time → pause safely, keep the engine (no crash, no rebasing). */
+  private softPause(reason: string) {
+    if (this.mode !== 'live') return;
+    this.overruns++;
+    this.mode = 'idle'; // CooperativePump.ready() becomes false → pump sleeps; engine retained
+    this.stats.overruns = this.overruns;
+    this.options.onLog?.(`Overrun #${this.overruns}: ${reason}; inference paused safely (engine retained, resume with Live mic)`);
+    this.onStats?.({ ...this.stats });
+    this.onOverrun?.(this.overruns, reason);
+  }
   async start() {
     await this.stop();
     if (this.mode === 'disposed') throw new Error('Engine is disposed');
@@ -98,12 +162,12 @@ export class StreamEngine {
       async () => {
         // Single monotonic input timeline. Never add a ringBase to only half the comparisons.
         const behind = this.received - this.processor.outputFrame * 160;
-        if (behind > Math.max(16000, this.processor.chunk * 160 * 6)) throw new Error('Inference cannot keep up: >1 s backlog. Microphone paused safely. Increase chunk size or use file mode.');
+        if (behind > Math.max(16000, this.processor.chunk * 160 * 6)) { this.softPause('inference >1 s behind real time'); return; }
         // Capture the small window BEFORE awaiting GPU work. Otherwise the live ring can wrap while a
         // slow device is executing phone layers and the subsequent pitch DSP reads overwritten PCM.
         const start = Math.max(0, this.processor.outputFrame * 160 - 560);
         const end = this.processor.requiredSamples;
-        if (start < this.received - this.ring.length || end > this.received || end - start > this.snapshot.length) throw new Error('Input backlog exceeded the snapshot budget; microphone paused');
+        if (start < this.received - this.ring.length || end > this.received || end - start > this.snapshot.length) { this.softPause('input backlog exceeded the snapshot budget'); return; }
         for (let i = start; i < end; i++) this.snapshot[i - start] = this.ring[i % this.ring.length];
         this.processor.setParams(this.params);
         const part = await this.processor.next(i => {
@@ -119,7 +183,6 @@ export class StreamEngine {
       error => { this.epoch++; this.mode = 'idle'; this.options.onLog?.(`ERROR: ${String(error)}`); this.onFailure?.(String(error)); },
     );
   }
-
   push(samples: Float32Array, startSample: number) {
     if (this.mode !== 'live') return;
     if (startSample !== this.received || samples.length > 160 * 40) throw new Error('Live PCM sequence lost; restart microphone to reset model state');
@@ -127,7 +190,6 @@ export class StreamEngine {
     this.received += samples.length;
     this.pump!.wake(); // No wake until data is actually available; no immediate recursive finally().
   }
-
   convert16(pcm: Float32Array, progress?: (fraction: number, message: string) => void) {
     if (this.mode !== 'idle' || this.activeFile || this.disposing) return Promise.reject(new Error('Engine is busy'));
     const epoch = ++this.epoch, p = { ...this.params };
@@ -162,7 +224,6 @@ export class StreamEngine {
     this.activeFile = run().finally(() => { this.mode = 'idle'; this.activeFile = null; });
     return this.activeFile;
   }
-
   async stop() {
     if (this.mode === 'disposed') return;
     this.epoch++;
@@ -177,7 +238,7 @@ export class StreamEngine {
     this.disposing = (async () => {
       await this.stop(); this.mode = 'disposed';
       await this.processor.dispose(); this.ring = new Float32Array(0); this.snapshot = new Float32Array(0);
-      this.onAudio = this.onFrames = this.onStats = this.onFailure = null;
+      this.onAudio = this.onFrames = this.onStats = this.onFailure = this.onOverrun = null;
     })();
     return this.disposing;
   }

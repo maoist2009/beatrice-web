@@ -14,4 +14,5 @@ export type WorkerEvent =
   | { type: 'stats'; stats: EngineStats }
   | { type: 'frames'; frames: FrameResult[] }
   | { type: 'audio'; audio: Float32Array }
+  | { type: 'overrun'; count: number; reason: string }
   | { type: 'progress'; fraction: number; message: string };

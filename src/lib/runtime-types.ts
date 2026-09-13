@@ -2,6 +2,10 @@ import type { ModelFormat } from './formats';
 import type { PitchParams } from './dsp';
 
 export type Backend = 'webgpu' | 'wasm';
+/** 'auto' benchmarks WebGPU vs WASM during the build and keeps the faster one (measured RTF). */
+export type BackendChoice = Backend | 'auto';
+/** 'fp32' forces an FP32-only WebGPU device (shader-f16 not requested) — the Adreno 6xx garble workaround. */
+export type GpuPrecision = 'auto' | 'fp32';
 export type GpuMode = 'bound' | 'compatible';
 export interface ComponentReport { name: string; status: 'verified' | 'mismatch'; bytes: number; detail: string }
 export interface FrameResult {
@@ -20,11 +24,15 @@ export interface EngineStats {
   backend: Backend; latencyMs: number; inferMs: number; synthMs: number; rtf: number; frames: number;
   underruns: number; queue: number; sampleRate: number; graphBytes: number;
   measured?: boolean; chunkFrames?: number; dropped?: number; capture?: boolean;
+  /** Overrun safe-pauses: inference fell behind real time; mic paused, engine retained. */
+  overruns?: number;
   ioMode?: 'gpu-bound' | 'cpu-tensors'; stage?: string; resources?: ResourceStats;
   adapter?: { vendor: string; architecture: string; description: string };
 }
 export interface EngineOptions {
-  backend: Backend; ctxFrames: number; chunkFrames: number; gpuMode?: GpuMode;
+  backend: BackendChoice; ctxFrames: number; chunkFrames: number; gpuMode?: GpuMode; gpuPrecision?: GpuPrecision;
+  /** Experimental: record GPU commands on first run, replay afterwards (kills per-chunk dispatch overhead). */
+  graphCapture?: boolean;
   signal?: AbortSignal;
   onLog?: (message: string) => void; onStage?: (stage: string) => void;
   gruMode?: 'onnx-gru' | 'primitives';
@@ -40,11 +48,13 @@ export interface VoiceEngine {
   start(deviceId?: string): Promise<void>;
   stop(): void;
   dispose(): Promise<void>;
-  convertBuffer(pcm: Float32Array, rate: number, progress?: (fraction: number, message: string) => void): Promise<{ audio: Float32Array; sampleRate: number; frames: FrameResult[] }>;
+  convertBuffer(pcm: Float32Array, rate: number, progress?: (fraction: number, text: string) => void): Promise<{ audio: Float32Array; sampleRate: number; frames: FrameResult[] }>;
 }
 export const DEFAULT_PARAMS: EngineParams = {
-  pitchShift: 0, averageSourcePitch: 0, intonationIntensity: 1, pitchCorrection: 0, pitchCorrectionType: 0,
-  formantShift: 0, speaker: 0, inputGain: 1, outputGain: 1, monitor: false, minMidi: 33, maxMidi: 100,
-  vqNeighbors: 4, convert: true,
+  // These are the official ProcessorCore1/2 defaults, not the trainer's vq_topk.
+  // averageSourcePitch is the official core parameter unit (default 52.0).
+  pitchShift: 0, averageSourcePitch: 52, intonationIntensity: 1, pitchCorrection: 0, pitchCorrectionType: 0,
+  formantShift: 0, speaker: 0, inputGain: 1, outputGain: 1, monitor: false, minMidi: 33.125, maxMidi: 80.875,
+  vqNeighbors: 0, convert: true,
 };
-export const initialStats = (): EngineStats => ({ backend: 'wasm', latencyMs: 0, inferMs: 0, synthMs: 0, rtf: 0, frames: 0, underruns: 0, queue: 0, sampleRate: 0, graphBytes: 0, measured: false });
+export const initialStats = (): EngineStats => ({ backend: 'wasm', latencyMs: 0, inferMs: 0, synthMs: 0, rtf: 0, frames: 0, underruns: 0, queue: 0, sampleRate: 0, graphBytes: 0, measured: false, overruns: 0 });
